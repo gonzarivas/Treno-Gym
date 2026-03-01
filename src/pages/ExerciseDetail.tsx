@@ -284,8 +284,8 @@ export default function ExerciseDetail() {
                 {exercise?.photo_data && (
                     <div className="flex flex-col items-center justify-center rounded-xl border border-border overflow-hidden relative group">
                         <img src={exercise.photo_data} alt={exercise?.name} className="w-full aspect-video object-cover" />
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-md" onClick={handleDeletePhoto}>
+                        <div className="absolute top-2 right-2 opacity-90 transition-opacity">
+                            <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-md hover:bg-red-600" onClick={handleDeletePhoto}>
                                 <Trash2 size={14} />
                             </Button>
                         </div>
