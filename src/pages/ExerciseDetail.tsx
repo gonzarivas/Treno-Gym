@@ -6,7 +6,7 @@ import type { SetLog, WorkoutLog, Exercise } from '../lib/db';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { ArrowLeft, Camera, Plus, Trash2 } from 'lucide-react';
 import {
     Select,
@@ -15,6 +15,53 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter
+} from '../components/ui/dialog';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
+
+const createImage = (url: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.addEventListener('load', () => resolve(image))
+        image.addEventListener('error', (error) => reject(error))
+        image.src = url
+    })
+
+async function getCroppedImg(
+    imageSrc: string,
+    pixelCrop: Area
+): Promise<string | null> {
+    const image = await createImage(imageSrc)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) return null
+
+    // set canvas width to final desired crop size
+    canvas.width = pixelCrop.width
+    canvas.height = pixelCrop.height
+
+    ctx.drawImage(
+        image,
+        pixelCrop.x,
+        pixelCrop.y,
+        pixelCrop.width,
+        pixelCrop.height,
+        0,
+        0,
+        pixelCrop.width,
+        pixelCrop.height
+    )
+
+    // As Base64 string
+    return canvas.toDataURL('image/jpeg', 0.8)
+}
 
 export default function ExerciseDetail() {
     const { id } = useParams();
@@ -27,6 +74,13 @@ export default function ExerciseDetail() {
     const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
     const [feeling, setFeeling] = useState<'normal' | 'intensa' | 'fallo'>('normal');
     const [isUnilateral, setIsUnilateral] = useState(false);
+
+    // Crop State
+    const [selectedImageStr, setSelectedImageStr] = useState<string | null>(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+    const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 
     // Get current date string (YYYY-MM-DD)
     const todayDate = new Date().toISOString().split('T')[0];
@@ -59,21 +113,54 @@ export default function ExerciseDetail() {
         [exerciseId, todayDate]
     );
 
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onloadend = async () => {
-            const base64String = reader.result as string;
-            const { error } = await supabase
-                .from('exercises')
-                .update({ photo_data: base64String })
-                .eq('id', exerciseId);
-
-            if (!error) refetchEx();
+        reader.onloadend = () => {
+            setSelectedImageStr(reader.result as string);
+            setIsCropModalOpen(true);
         };
         reader.readAsDataURL(file);
+
+        // Clear input so same file can be selected again
+        e.target.value = '';
+    };
+
+    const handleCropComplete = (_croppedArea: Area, croppedAreaPixels: Area) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const handleSaveCroppedImage = async () => {
+        if (!selectedImageStr || !croppedAreaPixels) return;
+
+        try {
+            const croppedImageBase64 = await getCroppedImg(selectedImageStr, croppedAreaPixels);
+
+            if (croppedImageBase64) {
+                const { error } = await supabase
+                    .from('exercises')
+                    .update({ photo_data: croppedImageBase64 })
+                    .eq('id', exerciseId);
+
+                if (!error) refetchEx();
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsCropModalOpen(false);
+            setSelectedImageStr(null);
+        }
+    };
+
+    const handleDeletePhoto = async () => {
+        const { error } = await supabase
+            .from('exercises')
+            .update({ photo_data: null })
+            .eq('id', exerciseId);
+
+        if (!error) refetchEx();
     };
 
     const handleAddSet = async () => {
@@ -121,7 +208,11 @@ export default function ExerciseDetail() {
     };
 
     if (isExLoading) {
-        return <div className="p-4 pt-12 text-center text-muted-foreground">Cargando...</div>;
+        return (
+            <div className="flex justify-center items-center h-[50vh]">
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
     }
 
     if (!exercise) {
@@ -149,21 +240,55 @@ export default function ExerciseDetail() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={handlePhotoUpload}
+                        onChange={handlePhotoSelect}
                     />
                     <label htmlFor="photo-upload-nav">
                         <Button variant="outline" size="icon" className="rounded-full shadow-sm cursor-pointer" asChild>
                             <span><Camera size={20} className="text-foreground" /></span>
                         </Button>
                     </label>
+
+                    <Dialog open={isCropModalOpen} onOpenChange={setIsCropModalOpen}>
+                        <DialogContent className="max-w-md w-[90vw] p-0 border-0 overflow-hidden bg-black/95 text-white">
+                            <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent">
+                                <DialogTitle className="text-white drop-shadow-md">Ajustar Imagen</DialogTitle>
+                            </DialogHeader>
+                            <div className="relative w-full h-[60vh] sm:h-[400px]">
+                                {selectedImageStr && (
+                                    <Cropper
+                                        image={selectedImageStr}
+                                        crop={crop}
+                                        zoom={zoom}
+                                        aspect={16 / 9}
+                                        onCropChange={setCrop}
+                                        onZoomChange={setZoom}
+                                        onCropComplete={handleCropComplete}
+                                    />
+                                )}
+                            </div>
+                            <DialogFooter className="p-4 absolute bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black/80 to-transparent sm:justify-between flex-row justify-between items-center">
+                                <Button variant="ghost" className="text-white hover:bg-white/20" onClick={() => setIsCropModalOpen(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button className="bg-primary hover:bg-primary/90" onClick={handleSaveCroppedImage}>
+                                    Guardar
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </div>
 
             <div className="p-4 flex flex-col gap-6">
                 {/* Photo Section */}
                 {exercise?.photo_data && (
-                    <div className="flex flex-col items-center justify-center rounded-xl border border-border overflow-hidden relative">
-                        <img src={exercise.photo_data} alt={exercise?.name} className="w-full max-h-48 object-cover" />
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-border overflow-hidden relative group">
+                        <img src={exercise.photo_data} alt={exercise?.name} className="w-full aspect-video object-cover" />
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-md" onClick={handleDeletePhoto}>
+                                <Trash2 size={14} />
+                            </Button>
+                        </div>
                     </div>
                 )}
 
@@ -232,13 +357,12 @@ export default function ExerciseDetail() {
                 </div>
 
                 {/* Add Set Form */}
-                <Card className="shadow-sm border-primary/20 bg-card/50">
-                    <CardHeader className="pb-3 border-b border-border/50">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Plus size={18} className="text-primary" /> Nueva Serie
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 flex flex-col gap-5">
+                <Card className="shadow-sm border-primary/20 bg-card/50 mt-4 overflow-hidden rounded-xl border">
+                    <div className="bg-primary/5 px-4 py-3 border-b border-primary/10 flex items-center gap-2">
+                        <Plus size={16} className="text-primary" />
+                        <span className="font-semibold text-sm">Nueva Serie</span>
+                    </div>
+                    <CardContent className="pt-4 flex flex-col gap-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col gap-2">
                                 <Label htmlFor="weight">Peso</Label>

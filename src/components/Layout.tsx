@@ -10,7 +10,7 @@ export default function Layout() {
             </main>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 w-full bg-card border-t border-border px-6 py-3 flex justify-between items-center z-50">
+            <nav className="fixed bottom-0 w-full bg-card border-t border-border px-2 py-3 grid grid-cols-3 items-center z-50 safe-area-pb">
                 <NavLink
                     to="/"
                     className={({ isActive }) =>

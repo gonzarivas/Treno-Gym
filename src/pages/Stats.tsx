@@ -11,24 +11,27 @@ export default function Stats() {
     const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null);
 
     // Fetch all exercises to populate the dropdown
-    const { data: exercises } = useSupabaseQuery(
+    const { data: exercises, isLoading: isExLoading } = useSupabaseQuery(
         async () => {
-            // First find which exercises actually have logs
-            const { data: logsData, error: logsError } = await supabase
-                .from('workout_logs')
-                .select('exercise_id');
+            // First find which exercises are currently in routines
+            const { data: routinesData, error: routinesError } = await supabase
+                .from('routine_days')
+                .select('exercise_ids');
 
-            if (logsError) throw logsError;
+            if (routinesError) throw routinesError;
 
-            const activeExerciseIds = Array.from(new Set((logsData || []).map(log => log.exercise_id)));
+            const routineExerciseIds = new Set<number>();
+            (routinesData || []).forEach(day => {
+                (day.exercise_ids || []).forEach((id: number) => routineExerciseIds.add(id));
+            });
 
-            if (activeExerciseIds.length === 0) return [];
+            if (routineExerciseIds.size === 0) return [];
 
             // Then fetch those exercises
             const { data, error } = await supabase
                 .from('exercises')
                 .select('*')
-                .in('id', activeExerciseIds)
+                .in('id', Array.from(routineExerciseIds))
                 .order('name');
 
             if (error) throw error;
@@ -78,7 +81,7 @@ export default function Stats() {
         });
     }, [exerciseLogs]);
 
-    // const isLoading = isExLoading;
+    const isLoading = exercises === undefined || isExLoading;
 
     return (
         <div className="p-4 flex flex-col gap-6 pb-24">
@@ -91,7 +94,11 @@ export default function Stats() {
 
             <div className="flex flex-col gap-4">
                 {/* Exercise Selection */}
-                {exercises && exercises.length > 0 ? (
+                {isLoading ? (
+                    <div className="flex justify-center items-center py-12">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                ) : exercises && exercises.length > 0 ? (
                     <div className="flex flex-col gap-2">
                         <Select
                             value={selectedExerciseId?.toString() || ''}

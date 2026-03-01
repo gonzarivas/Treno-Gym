@@ -53,6 +53,7 @@ export default function RoutineBuilder() {
     const [activeDay, setActiveDay] = useState(1); // Default to Monday
     const [isAddingMode, setIsAddingMode] = useState(false);
     const [newExerciseName, setNewExerciseName] = useState('');
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
     const [newExerciseEquip, setNewExerciseEquip] = useState('');
     const [newExerciseMuscle, setNewExerciseMuscle] = useState('');
 
@@ -88,19 +89,34 @@ export default function RoutineBuilder() {
         if (!newExerciseName.trim()) return;
 
         try {
-            // 1. Create the exercise
-            const { data: exData, error: exError } = await supabase
+            // 1. Check if exercise already exists
+            const { data: existingEx, error: checkError } = await supabase
                 .from('exercises')
-                .insert([{
-                    name: newExerciseName.trim(),
-                    muscle_group: newExerciseMuscle || null,
-                    equipment: newExerciseEquip || null
-                }])
                 .select('id')
-                .single();
+                .ilike('name', newExerciseName.trim())
+                .limit(1);
 
-            if (exError) throw exError;
-            const exerciseId = exData.id;
+            if (checkError) throw checkError;
+
+            let exerciseId;
+
+            if (existingEx && existingEx.length > 0) {
+                exerciseId = existingEx[0].id;
+            } else {
+                // Create the exercise
+                const { data: exData, error: exError } = await supabase
+                    .from('exercises')
+                    .insert([{
+                        name: newExerciseName.trim(),
+                        muscle_group: newExerciseMuscle || null,
+                        equipment: newExerciseEquip || null
+                    }])
+                    .select('id')
+                    .single();
+
+                if (exError) throw exError;
+                exerciseId = exData.id;
+            }
 
             // 2. Add to routineDay
             if (routineDay && routineDay.id !== undefined) {
@@ -186,33 +202,58 @@ export default function RoutineBuilder() {
                                 <DialogTitle>Nuevo Ejercicio</DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="name" className="text-right">
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <Label htmlFor="name" className="text-right mt-3">
                                         Nombre
                                     </Label>
-                                    <Input
-                                        id="name"
-                                        list="classic-exercises"
-                                        value={newExerciseName}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setNewExerciseName(val);
-                                            // Auto-fill equipment and muscle if match
-                                            const match = CLASSIC_EXERCISES.find(ex => ex.name.toLowerCase() === val.toLowerCase());
-                                            if (match) {
-                                                setNewExerciseMuscle(match.muscle);
-                                                setNewExerciseEquip(match.equip);
-                                            }
-                                        }}
-                                        className="col-span-3"
-                                        placeholder="Ej. Press Banca"
-                                        autoComplete="off"
-                                    />
-                                    <datalist id="classic-exercises">
-                                        {CLASSIC_EXERCISES.map(ex => (
-                                            <option key={ex.name} value={ex.name} />
-                                        ))}
-                                    </datalist>
+                                    <div className="col-span-3 relative">
+                                        <Input
+                                            id="name"
+                                            value={newExerciseName}
+                                            onFocus={() => setShowAutocomplete(true)}
+                                            onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setNewExerciseName(val);
+                                                setShowAutocomplete(true);
+                                                // Auto-fill equipment and muscle if match exactly
+                                                const match = CLASSIC_EXERCISES.find(ex => ex.name.toLowerCase() === val.toLowerCase());
+                                                if (match) {
+                                                    setNewExerciseMuscle(match.muscle);
+                                                    setNewExerciseEquip(match.equip);
+                                                }
+                                            }}
+                                            placeholder="Ej. Press Banca"
+                                            autoComplete="off"
+                                        />
+
+                                        {/* Custom Autocomplete Dropdown */}
+                                        {showAutocomplete && newExerciseName.trim().length > 0 && (
+                                            <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-[150px] overflow-y-auto">
+                                                {CLASSIC_EXERCISES.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).length > 0 ? (
+                                                    CLASSIC_EXERCISES.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).map((ex) => (
+                                                        <div
+                                                            key={ex.name}
+                                                            className="px-3 py-2 text-sm cursor-pointer hover:bg-muted"
+                                                            onClick={() => {
+                                                                setNewExerciseName(ex.name);
+                                                                setNewExerciseMuscle(ex.muscle);
+                                                                setNewExerciseEquip(ex.equip);
+                                                                setShowAutocomplete(false);
+                                                            }}
+                                                        >
+                                                            <div className="font-medium">{ex.name}</div>
+                                                            <div className="text-xs text-muted-foreground">{ex.muscle} • {ex.equip}</div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-3 py-2 text-sm text-muted-foreground italic">
+                                                        No hay coincidencias
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-4 items-center gap-4">
@@ -255,7 +296,9 @@ export default function RoutineBuilder() {
                 </div>
 
                 {isLoading ? (
-                    <p className="text-muted-foreground text-sm text-center py-8">Cargando...</p>
+                    <div className="flex justify-center items-center py-12">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                 ) : exercises === undefined || exercises.length === 0 ? (
                     <div className="text-center py-12 border border-dashed rounded-lg border-border">
                         <p className="text-muted-foreground text-sm">No hay ejercicios para hoy.</p>

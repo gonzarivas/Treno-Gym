@@ -80,7 +80,9 @@ export default function Home() {
 
             <div className="flex flex-col gap-3">
                 {isLoading ? (
-                    <p className="text-muted-foreground text-sm text-center py-8">Cargando tu rutina...</p>
+                    <div className="flex justify-center items-center py-12">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                 ) : exercises === undefined || exercises.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 border border-dashed rounded-xl border-border bg-muted/30 text-center">
                         <p className="text-muted-foreground text-sm">
@@ -100,17 +102,17 @@ export default function Home() {
                                 {groupExercises.map((ex, index) => (
                                     <Card
                                         key={`${ex?.id}-${index}`}
-                                        className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50"
+                                        className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50 shadow-none border-border/40"
                                         onClick={() => navigate(`/exercise/${ex?.id}`)}
                                     >
-                                        <CardContent className="p-3 flex justify-between items-center gap-3">
+                                        <CardContent className="p-2.5 px-3 flex justify-between items-center gap-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                                                <div className="w-7 h-7 rounded-sm bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                                                     {index + 1}
                                                 </div>
-                                                <span className="font-medium text-base">{ex?.name}</span>
+                                                <span className="font-medium text-sm">{ex?.name}</span>
                                             </div>
-                                            <ChevronRight className="text-muted-foreground" size={18} />
+                                            <ChevronRight className="text-muted-foreground/50" size={16} />
                                         </CardContent>
                                     </Card>
                                 ))}
