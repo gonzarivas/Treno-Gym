@@ -4,6 +4,7 @@ import { supabase } from '../lib/db';
 import type { Exercise, RoutineDay } from '../lib/db';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
 import {
     Dialog,
     DialogContent,
@@ -148,7 +149,19 @@ export default function RoutineBuilder() {
     const handleRemoveExerciseFromDay = async (exerciseId: number) => {
         if (!routineDay || routineDay.id === undefined) return;
 
+        if (!window.confirm("¿Seguro que deseas eliminar este ejercicio? Esto también eliminará su historial de series de la base de datos de forma permanente.")) {
+            return;
+        }
+
         try {
+            // First delete series related to this exercise
+            await supabase.from('series').delete().eq('exercise_id', exerciseId);
+
+            // Delete the exercise itself from the database
+            const { error: delError } = await supabase.from('exercises').delete().eq('id', exerciseId);
+            if (delError) throw delError;
+
+            // Update local routine_days just for consistency
             const { error } = await supabase
                 .from('routine_days')
                 .update({
@@ -296,8 +309,10 @@ export default function RoutineBuilder() {
                 </div>
 
                 {isLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex flex-col gap-3 py-2">
+                        <Skeleton className="h-[68px] w-full rounded-xl" />
+                        <Skeleton className="h-[68px] w-full rounded-xl" />
+                        <Skeleton className="h-[68px] w-full rounded-xl" />
                     </div>
                 ) : exercises === undefined || exercises.length === 0 ? (
                     <div className="text-center py-12 border border-dashed rounded-lg border-border">

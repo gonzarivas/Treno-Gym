@@ -3,6 +3,7 @@ import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 import { supabase } from '../lib/db';
 import type { Exercise, WorkoutLog } from '../lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp } from 'lucide-react';
@@ -95,8 +96,9 @@ export default function Stats() {
             <div className="flex flex-col gap-4">
                 {/* Exercise Selection */}
                 {isLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex flex-col gap-4 py-2">
+                        <Skeleton className="h-12 w-full rounded-md" />
+                        <Skeleton className="h-[300px] w-full rounded-xl mt-4" />
                     </div>
                 ) : exercises && exercises.length > 0 ? (
                     <div className="flex flex-col gap-2">

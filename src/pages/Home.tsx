@@ -3,6 +3,7 @@ import { supabase } from '../lib/db';
 import type { Exercise, RoutineDay } from '../lib/db';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Skeleton } from '../components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Dumbbell } from 'lucide-react';
 import { useMemo } from 'react';
@@ -74,14 +75,17 @@ export default function Home() {
                     ¡A entrenar! <Dumbbell className="text-primary" />
                 </h1>
                 <p className="text-muted-foreground text-sm">
-                    Hoy es <span className="font-semibold text-foreground">{DAYS_OF_WEEK[todayNum]}</span>. Esta es tu rutina programada.
+                    Hoy es <span className="font-bold text-primary tracking-wide text-base">{DAYS_OF_WEEK[todayNum]}</span>. Esta es tu rutina programada.
                 </p>
             </div>
 
             <div className="flex flex-col gap-3">
                 {isLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex flex-col gap-4 py-2">
+                        <Skeleton className="h-5 w-24 mb-1" />
+                        <Skeleton className="h-[52px] w-full rounded-xl" />
+                        <Skeleton className="h-[52px] w-full rounded-xl" />
+                        <Skeleton className="h-[52px] w-full rounded-xl" />
                     </div>
                 ) : exercises === undefined || exercises.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 border border-dashed rounded-xl border-border bg-muted/30 text-center">

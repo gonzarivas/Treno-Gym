@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
 import { ArrowLeft, Camera, Plus, Trash2 } from 'lucide-react';
 import {
     Select,
@@ -209,8 +210,15 @@ export default function ExerciseDetail() {
 
     if (isExLoading) {
         return (
-            <div className="flex justify-center items-center h-[50vh]">
-                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="flex flex-col min-h-full pb-20 bg-background p-4 gap-6">
+                <div className="flex items-center gap-3 py-2">
+                    <Skeleton className="h-10 w-10 rounded-md" />
+                    <Skeleton className="h-8 w-48 rounded-md" />
+                </div>
+                <Skeleton className="h-[200px] w-full rounded-xl" />
+                <Skeleton className="h-8 w-32 rounded-md" />
+                <Skeleton className="h-[76px] w-full rounded-xl" />
+                <Skeleton className="h-[76px] w-full rounded-xl" />
             </div>
         );
     }
