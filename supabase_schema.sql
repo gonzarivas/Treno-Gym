@@ -36,3 +36,7 @@ ALTER TABLE workout_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations for anon on exercises" ON exercises FOR ALL USING (true);
 CREATE POLICY "Allow all operations for anon on routine_days" ON routine_days FOR ALL USING (true);
 CREATE POLICY "Allow all operations for anon on workout_logs" ON workout_logs FOR ALL USING (true);
+
+-- Migración v2 (Añadir muscle_group y equipment)
+ALTER TABLE exercises ADD COLUMN muscle_group TEXT;
+ALTER TABLE exercises ADD COLUMN equipment TEXT;
