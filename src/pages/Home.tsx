@@ -4,7 +4,7 @@ import type { Exercise, RoutineDay } from '../lib/db';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Dumbbell } from 'lucide-react';
 import { useMemo } from 'react';
 
 const DAYS_OF_WEEK = [
@@ -53,10 +53,26 @@ export default function Home() {
 
     const isLoading = isRoutineLoading || isExercisesLoading;
 
+    // Group exercises by muscle group
+    const groupedExercises = useMemo(() => {
+        if (!exercises) return {};
+
+        const groups: Record<string, typeof exercises> = {};
+        for (const ex of exercises) {
+            if (!ex) continue;
+            const groupName = ex.muscle_group || 'Otros';
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(ex);
+        }
+        return groups;
+    }, [exercises]);
+
     return (
         <div className="p-4 flex flex-col gap-6">
             <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold">¡A entrenar! 💪</h1>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    ¡A entrenar! <Dumbbell className="text-primary" />
+                </h1>
                 <p className="text-muted-foreground text-sm">
                     Hoy es <span className="font-semibold text-foreground">{DAYS_OF_WEEK[todayNum]}</span>. Esta es tu rutina programada.
                 </p>
@@ -75,22 +91,31 @@ export default function Home() {
                         </Button>
                     </div>
                 ) : (
-                    exercises.map((ex, index) => (
-                        <Card
-                            key={`${ex?.id}-${index}`}
-                            className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50"
-                            onClick={() => navigate(`/exercise/${ex?.id}`)}
-                        >
-                            <CardContent className="p-4 flex justify-between items-center gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                                        {index + 1}
-                                    </div>
-                                    <span className="font-medium text-lg">{ex?.name}</span>
-                                </div>
-                                <ChevronRight className="text-muted-foreground" size={20} />
-                            </CardContent>
-                        </Card>
+                    Object.entries(groupedExercises).map(([groupName, groupExercises]) => (
+                        <div key={groupName} className="flex flex-col gap-2 mb-2">
+                            <h2 className="text-sm font-semibold text-muted-foreground px-1 uppercase tracking-wider">
+                                {groupName}
+                            </h2>
+                            <div className="flex flex-col gap-2">
+                                {groupExercises.map((ex, index) => (
+                                    <Card
+                                        key={`${ex?.id}-${index}`}
+                                        className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50"
+                                        onClick={() => navigate(`/exercise/${ex?.id}`)}
+                                    >
+                                        <CardContent className="p-3 flex justify-between items-center gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                                                    {index + 1}
+                                                </div>
+                                                <span className="font-medium text-base">{ex?.name}</span>
+                                            </div>
+                                            <ChevronRight className="text-muted-foreground" size={18} />
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
                     ))
                 )}
             </div>

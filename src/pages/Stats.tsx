@@ -5,6 +5,7 @@ import type { Exercise, WorkoutLog } from '../lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp } from 'lucide-react';
 
 export default function Stats() {
     const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null);
@@ -12,7 +13,24 @@ export default function Stats() {
     // Fetch all exercises to populate the dropdown
     const { data: exercises } = useSupabaseQuery(
         async () => {
-            const { data, error } = await supabase.from('exercises').select('*').order('name');
+            // First find which exercises actually have logs
+            const { data: logsData, error: logsError } = await supabase
+                .from('workout_logs')
+                .select('exercise_id');
+
+            if (logsError) throw logsError;
+
+            const activeExerciseIds = Array.from(new Set((logsData || []).map(log => log.exercise_id)));
+
+            if (activeExerciseIds.length === 0) return [];
+
+            // Then fetch those exercises
+            const { data, error } = await supabase
+                .from('exercises')
+                .select('*')
+                .in('id', activeExerciseIds)
+                .order('name');
+
             if (error) throw error;
             return data as Exercise[];
         },
@@ -65,13 +83,15 @@ export default function Stats() {
     return (
         <div className="p-4 flex flex-col gap-6 pb-24">
             <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold">Estadísticas 📈</h1>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    Estadísticas <TrendingUp className="text-primary" />
+                </h1>
                 <p className="text-muted-foreground text-sm">Visualiza tu progreso a lo largo del tiempo.</p>
             </div>
 
             <div className="flex flex-col gap-4">
                 {/* Exercise Selection */}
-                {exercises !== undefined && exercises.length > 0 ? (
+                {exercises && exercises.length > 0 ? (
                     <div className="flex flex-col gap-2">
                         <Select
                             value={selectedExerciseId?.toString() || ''}
@@ -81,7 +101,7 @@ export default function Stats() {
                                 <SelectValue placeholder="Selecciona un ejercicio" />
                             </SelectTrigger>
                             <SelectContent>
-                                {exercises.map((ex) => (
+                                {exercises.map((ex: Exercise) => (
                                     <SelectItem key={ex.id} value={ex.id!.toString()}>
                                         {ex.name}
                                     </SelectItem>

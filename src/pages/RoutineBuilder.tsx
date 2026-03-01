@@ -13,7 +13,31 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
+
+const EQUIPMENT_OPTIONS = ['Mancuernas', 'Barra', 'Máquina', 'Polea', 'Peso Corporal', 'Otro'];
+const MUSCLE_GROUPS = ['Pectoral', 'Espalda', 'Deltoides', 'Bíceps', 'Tríceps', 'Piernas', 'Glúteos', 'Abdomen', 'Cardio'];
+
+const CLASSIC_EXERCISES = [
+    { name: 'Press Banca', muscle: 'Pectoral', equip: 'Barra' },
+    { name: 'Press Inclinado', muscle: 'Pectoral', equip: 'Mancuernas' },
+    { name: 'Aperturas', muscle: 'Pectoral', equip: 'Polea' },
+    { name: 'Dominadas', muscle: 'Espalda', equip: 'Peso Corporal' },
+    { name: 'Remo con Barra', muscle: 'Espalda', equip: 'Barra' },
+    { name: 'Jalón al Pecho', muscle: 'Espalda', equip: 'Máquina' },
+    { name: 'Press Militar', muscle: 'Deltoides', equip: 'Barra' },
+    { name: 'Elevaciones Laterales', muscle: 'Deltoides', equip: 'Mancuernas' },
+    { name: 'Curl Bayesiano', muscle: 'Bíceps', equip: 'Polea' },
+    { name: 'Curl con Barra', muscle: 'Bíceps', equip: 'Barra' },
+    { name: 'Extensiones de Tríceps', muscle: 'Tríceps', equip: 'Polea' },
+    { name: 'Sentadilla', muscle: 'Piernas', equip: 'Barra' },
+    { name: 'Prensa', muscle: 'Piernas', equip: 'Máquina' },
+    { name: 'Peso Muerto', muscle: 'Piernas', equip: 'Barra' },
+    { name: 'Extensión de Cuádriceps', muscle: 'Piernas', equip: 'Máquina' },
+    { name: 'Curl Femoral', muscle: 'Piernas', equip: 'Máquina' },
+    { name: 'Hip Thrust', muscle: 'Glúteos', equip: 'Barra' },
+];
 
 const DAYS_OF_WEEK = [
     { id: 1, label: 'Lunes' },
@@ -29,6 +53,8 @@ export default function RoutineBuilder() {
     const [activeDay, setActiveDay] = useState(1); // Default to Monday
     const [isAddingMode, setIsAddingMode] = useState(false);
     const [newExerciseName, setNewExerciseName] = useState('');
+    const [newExerciseEquip, setNewExerciseEquip] = useState('');
+    const [newExerciseMuscle, setNewExerciseMuscle] = useState('');
 
     // Fetch Routine Day
     const { data: routineDay, isLoading: isRoutineDayLoading, refetch: refetchRoutineDay } = useSupabaseQuery(
@@ -65,7 +91,11 @@ export default function RoutineBuilder() {
             // 1. Create the exercise
             const { data: exData, error: exError } = await supabase
                 .from('exercises')
-                .insert([{ name: newExerciseName.trim() }])
+                .insert([{
+                    name: newExerciseName.trim(),
+                    muscle_group: newExerciseMuscle || null,
+                    equipment: newExerciseEquip || null
+                }])
                 .select('id')
                 .single();
 
@@ -90,6 +120,8 @@ export default function RoutineBuilder() {
             }
 
             setNewExerciseName('');
+            setNewExerciseMuscle('');
+            setNewExerciseEquip('');
             setIsAddingMode(false);
             refetchRoutineDay(); // Refetch routine day to get updated exercise_ids
         } catch (e) {
@@ -160,12 +192,59 @@ export default function RoutineBuilder() {
                                     </Label>
                                     <Input
                                         id="name"
+                                        list="classic-exercises"
                                         value={newExerciseName}
-                                        onChange={(e) => setNewExerciseName(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewExerciseName(val);
+                                            // Auto-fill equipment and muscle if match
+                                            const match = CLASSIC_EXERCISES.find(ex => ex.name.toLowerCase() === val.toLowerCase());
+                                            if (match) {
+                                                setNewExerciseMuscle(match.muscle);
+                                                setNewExerciseEquip(match.equip);
+                                            }
+                                        }}
                                         className="col-span-3"
                                         placeholder="Ej. Press Banca"
                                         autoComplete="off"
                                     />
+                                    <datalist id="classic-exercises">
+                                        {CLASSIC_EXERCISES.map(ex => (
+                                            <option key={ex.name} value={ex.name} />
+                                        ))}
+                                    </datalist>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label className="text-right">Músculo</Label>
+                                    <div className="col-span-3">
+                                        <Select value={newExerciseMuscle} onValueChange={setNewExerciseMuscle}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Opcional" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {MUSCLE_GROUPS.map(m => (
+                                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label className="text-right">Equipo</Label>
+                                    <div className="col-span-3">
+                                        <Select value={newExerciseEquip} onValueChange={setNewExerciseEquip}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Opcional" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {EQUIPMENT_OPTIONS.map(eq => (
+                                                    <SelectItem key={eq} value={eq}>{eq}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                             </div>
                             <Button onClick={handleCreateExercise} disabled={!newExerciseName.trim()}>

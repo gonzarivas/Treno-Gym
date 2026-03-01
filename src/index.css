@@ -146,11 +146,11 @@
 }
 
 .dark {
-  --background: oklch(0.130 0 0);
+  --background: oklch(0.160 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.180 0 0);
+  --card: oklch(0.200 0 0);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.180 0 0);
+  --popover: oklch(0.200 0 0);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.70 0.14 162);
   /* Emerald / Green accent */

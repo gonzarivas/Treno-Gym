@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { ArrowLeft, Camera, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2 } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -143,39 +143,92 @@ export default function ExerciseDetail() {
                     </Button>
                     <h1 className="text-xl font-bold truncate max-w-[200px]">{exercise?.name}</h1>
                 </div>
-            </div>
-
-            <div className="p-4 flex flex-col gap-6">
-                {/* Photo Section */}
-                <div className="flex flex-col items-center justify-center bg-muted/40 rounded-xl border border-border overflow-hidden relative min-h-[160px]">
-                    {exercise?.photo_data ? (
-                        <>
-                            <img src={exercise.photo_data} alt={exercise?.name} className="w-full h-48 object-cover" />
-                            <label
-                                htmlFor="photo-upload"
-                                className="absolute bottom-2 right-2 bg-background/80 p-2 rounded-full shadow-lg border border-border cursor-pointer active:scale-95 transition-transform"
-                            >
-                                <Camera size={20} className="text-foreground" />
-                            </label>
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center p-8 text-muted-foreground gap-2">
-                            <ImageIcon size={32} />
-                            <p className="text-sm font-medium">Añadir foto de la máquina</p>
-                            <label htmlFor="photo-upload">
-                                <Button variant="outline" size="sm" className="mt-2 cursor-pointer" asChild>
-                                    <span>Subir o tomar foto</span>
-                                </Button>
-                            </label>
-                        </div>
-                    )}
+                <div>
                     <input
-                        id="photo-upload"
+                        id="photo-upload-nav"
                         type="file"
                         accept="image/*"
                         className="hidden"
                         onChange={handlePhotoUpload}
                     />
+                    <label htmlFor="photo-upload-nav">
+                        <Button variant="outline" size="icon" className="rounded-full shadow-sm cursor-pointer" asChild>
+                            <span><Camera size={20} className="text-foreground" /></span>
+                        </Button>
+                    </label>
+                </div>
+            </div>
+
+            <div className="p-4 flex flex-col gap-6">
+                {/* Photo Section */}
+                {exercise?.photo_data && (
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-border overflow-hidden relative">
+                        <img src={exercise.photo_data} alt={exercise?.name} className="w-full max-h-48 object-cover" />
+                    </div>
+                )}
+
+                {/* Today's Sets History */}
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between px-1">
+                        <h2 className="font-semibold text-lg flex items-center gap-2">
+                            Series de Hoy
+                            {todayLog?.sets?.length ? (
+                                <span className="bg-primary/20 text-primary text-xs w-6 h-6 flex items-center justify-center rounded-full">
+                                    {todayLog.sets.length}
+                                </span>
+                            ) : null}
+                        </h2>
+                    </div>
+
+                    {!todayLog?.sets?.length ? (
+                        <div className="text-center py-6 px-4 border border-dashed rounded-xl border-border/60 bg-muted/20">
+                            <p className="text-muted-foreground text-sm">Aún no has registrado series hoy.</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {todayLog.sets.map((set, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`flex items-center justify-between p-4 rounded-xl border ${set.feeling === 'fallo' ? 'border-destructive/40 bg-destructive/5' :
+                                        set.feeling === 'intensa' ? 'border-orange-500/40 bg-orange-500/5' :
+                                            'border-border bg-card'
+                                        } shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex flex-col items-center justify-center w-8 h-8 rounded-full bg-background border border-border group font-bold text-sm text-muted-foreground">
+                                            {idx + 1}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-lg leading-tight">
+                                                {set.weight} {set.unit} <span className="text-muted-foreground mx-1 font-normal">×</span> {set.reps} reps
+                                            </span>
+                                            <div className="flex gap-2 text-xs mt-1">
+                                                <span className={`capitalize font-medium ${set.feeling === 'fallo' ? 'text-destructive' :
+                                                    set.feeling === 'intensa' ? 'text-orange-500' : 'text-green-500'
+                                                    }`}>
+                                                    {set.feeling}
+                                                </span>
+                                                {set.isUnilateral && (
+                                                    <>
+                                                        <span className="text-muted-foreground">•</span>
+                                                        <span className="text-muted-foreground italic">Unilateral</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mr-2"
+                                        onClick={() => handleRemoveSet(idx)}
+                                    >
+                                        <Trash2 size={18} />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Add Set Form */}
@@ -263,70 +316,6 @@ export default function ExerciseDetail() {
                         </Button>
                     </CardContent>
                 </Card>
-
-                {/* Today's Sets History */}
-                <div className="flex flex-col gap-3 mt-2">
-                    <div className="flex items-center justify-between px-1">
-                        <h2 className="font-semibold text-lg flex items-center gap-2">
-                            Series de Hoy
-                            {todayLog?.sets?.length ? (
-                                <span className="bg-primary/20 text-primary text-xs w-6 h-6 flex items-center justify-center rounded-full">
-                                    {todayLog.sets.length}
-                                </span>
-                            ) : null}
-                        </h2>
-                    </div>
-
-                    {!todayLog?.sets?.length ? (
-                        <div className="text-center py-10 px-4 border border-dashed rounded-xl border-border/60 bg-muted/20">
-                            <p className="text-muted-foreground text-sm">Aún no has registrado series hoy.</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col gap-3">
-                            {todayLog.sets.map((set, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`flex items-center justify-between p-4 rounded-xl border ${set.feeling === 'fallo' ? 'border-destructive/40 bg-destructive/5' :
-                                        set.feeling === 'intensa' ? 'border-orange-500/40 bg-orange-500/5' :
-                                            'border-border bg-card'
-                                        } shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex flex-col items-center justify-center w-8 h-8 rounded-full bg-background border border-border group font-bold text-sm text-muted-foreground">
-                                            {idx + 1}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-lg leading-tight">
-                                                {set.weight} {set.unit} <span className="text-muted-foreground mx-1 font-normal">×</span> {set.reps} reps
-                                            </span>
-                                            <div className="flex gap-2 text-xs mt-1">
-                                                <span className={`capitalize font-medium ${set.feeling === 'fallo' ? 'text-destructive' :
-                                                    set.feeling === 'intensa' ? 'text-orange-500' : 'text-green-500'
-                                                    }`}>
-                                                    {set.feeling}
-                                                </span>
-                                                {set.isUnilateral && (
-                                                    <>
-                                                        <span className="text-muted-foreground">•</span>
-                                                        <span className="text-muted-foreground italic">Unilateral</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mr-2"
-                                        onClick={() => handleRemoveSet(idx)}
-                                    >
-                                        <Trash2 size={18} />
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
