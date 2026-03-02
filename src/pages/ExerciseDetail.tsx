@@ -154,6 +154,44 @@ export default function ExerciseDetail() {
         setIsSwapModalOpen(false);
     };
 
+    const handleCreateAndSwap = async () => {
+        if (!searchTerm.trim()) return;
+
+        try {
+            // Check if it exists first (case insensitive)
+            const { data: existing } = await supabase
+                .from('exercises')
+                .select('*')
+                .ilike('name', searchTerm.trim())
+                .maybeSingle();
+
+            let targetEx: Exercise;
+
+            if (existing) {
+                targetEx = existing as Exercise;
+            } else {
+                // Create new exercise
+                const { data: created, error } = await supabase
+                    .from('exercises')
+                    .insert([{
+                        name: searchTerm.trim(),
+                        muscle_group: exercise?.muscle_group || null,
+                        equipment: 'Otro' // Default for quick swap
+                    }])
+                    .select('*')
+                    .single();
+
+                if (error) throw error;
+                targetEx = created as Exercise;
+                refetchEx(); // Update list of all exercises
+            }
+
+            handleSwapExercise(targetEx);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -295,7 +333,16 @@ export default function ExerciseDetail() {
                     <h1 className="text-xl font-bold truncate max-w-[200px]">{exercise?.name}</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Dialog open={isSwapModalOpen} onOpenChange={setIsSwapModalOpen}>
+                    <Dialog open={isSwapModalOpen} onOpenChange={(open) => {
+                        setIsSwapModalOpen(open);
+                        if (open && exercise) {
+                            // Pre-fill search with a "clean" name to show variants
+                            const cleanName = exercise.name
+                                .replace(/máquina|machine|polea|pulley/gi, '')
+                                .trim();
+                            setSearchTerm(cleanName);
+                        }
+                    }}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="icon" className="rounded-full shadow-sm">
                                 <Repeat size={18} className="text-primary" />
@@ -313,25 +360,44 @@ export default function ExerciseDetail() {
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
+                                {searchTerm.trim().length > 0 && (
+                                    <Button
+                                        className="h-10 w-full mt-2 gap-2"
+                                        onClick={handleCreateAndSwap}
+                                    >
+                                        <Plus size={16} /> Crear y usar "{searchTerm.trim()}"
+                                    </Button>
+                                )}
                             </div>
                             <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
                                 {filteredExercises.length > 0 ? (
                                     filteredExercises.map((ex) => (
                                         <Card
                                             key={ex.id}
-                                            className="cursor-pointer hover:bg-muted/50 border-border/40"
-                                            onClick={() => handleSwapExercise(ex)}
+                                            className="hover:bg-muted/30 border-border/40 transition-colors"
                                         >
-                                            <CardContent className="p-3">
-                                                <div className="font-medium text-sm">{ex.name}</div>
-                                                <div className="text-xs text-muted-foreground">{ex.muscle_group} • {ex.equipment}</div>
+                                            <CardContent className="p-3 flex items-center justify-between gap-4">
+                                                <div className="flex flex-col overflow-hidden">
+                                                    <div className="font-medium text-sm truncate">{ex.name}</div>
+                                                    <div className="text-xs text-muted-foreground truncate">{ex.muscle_group} • {ex.equipment}</div>
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="shrink-0 text-xs font-semibold h-8"
+                                                    onClick={() => handleSwapExercise(ex)}
+                                                >
+                                                    Seleccionar
+                                                </Button>
                                             </CardContent>
                                         </Card>
                                     ))
                                 ) : (
-                                    <p className="text-center text-sm text-muted-foreground py-4 italic">
-                                        No se encontraron otros ejercicios.
-                                    </p>
+                                    searchTerm.trim().length === 0 && (
+                                        <p className="text-center text-sm text-muted-foreground py-10 italic">
+                                            Busca un ejercicio existente o escribe uno nuevo para sustituir.
+                                        </p>
+                                    )
                                 )}
                             </div>
                         </DialogContent>
