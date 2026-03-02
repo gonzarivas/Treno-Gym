@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2, Repeat, Search } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, Repeat } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -76,8 +76,6 @@ export default function ExerciseDetail() {
     const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
     const [feeling, setFeeling] = useState<'normal' | 'intensa' | 'fallo'>('normal');
     const [isUnilateral, setIsUnilateral] = useState(false);
-    const [searchParams] = useState(new URLSearchParams(window.location.search));
-    const swappedFromId = searchParams.get('swappedFrom');
 
     // Crop State
     const [selectedImageStr, setSelectedImageStr] = useState<string | null>(null);
@@ -86,10 +84,22 @@ export default function ExerciseDetail() {
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
     const [isCropModalOpen, setIsCropModalOpen] = useState(false);
     const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
 
     // Get current date string (YYYY-MM-DD)
     const todayDate = new Date().toISOString().split('T')[0];
+
+    const EQUIPMENT_OPTIONS = ['Mancuernas', 'Barra', 'Máquina', 'Polea', 'Peso Corporal', 'Otro'];
+
+    // Check if there's an active equipment swap for today
+    const getActiveSwap = () => {
+        const swapKey = `treno_equip_swap_${todayDate}`;
+        const swapsStr = localStorage.getItem(swapKey);
+        if (!swapsStr) return null;
+        const swaps = JSON.parse(swapsStr);
+        return swaps[exerciseId] || null;
+    };
+
+    const activeEquipSwap = getActiveSwap();
 
     // Fetch Data
     const { data: exercise, isLoading: isExLoading, refetch: refetchEx } = useSupabaseQuery(
@@ -119,77 +129,15 @@ export default function ExerciseDetail() {
         [exerciseId, todayDate]
     );
 
-    // Fetch all available exercises for the swap search
-    const { data: allExercises } = useSupabaseQuery(
-        async () => {
-            const { data, error } = await supabase
-                .from('exercises')
-                .select('*')
-                .order('name');
-            if (error) throw error;
-            return data as Exercise[];
-        },
-        []
-    );
-
-    const filteredExercises = allExercises?.filter(ex =>
-        ex.name.toLowerCase().includes(searchTerm.toLowerCase()) && ex.id !== exerciseId
-    ) || [];
-
-    const handleSwapExercise = (variant: Exercise) => {
-        if (!variant.id) return;
-
-        const swapKey = `treno_swap_${todayDate}`;
+    const handleEquipmentSwap = (newEquipment: string) => {
+        const swapKey = `treno_equip_swap_${todayDate}`;
         const existingSwapsStr = localStorage.getItem(swapKey);
-        const swaps: Record<number, number> = existingSwapsStr ? JSON.parse(existingSwapsStr) : {};
-
-        // exerciseId is the original ID (from routine)
-        // variant.id is what we are using today
-        swaps[exerciseId] = variant.id;
-
+        const swaps: Record<number, string> = existingSwapsStr ? JSON.parse(existingSwapsStr) : {};
+        swaps[exerciseId] = newEquipment;
         localStorage.setItem(swapKey, JSON.stringify(swaps));
-
-        // Navigate to the new exercise but keep context if needed
-        navigate(`/exercise/${variant.id}?swappedFrom=${exerciseId}`, { replace: true });
         setIsSwapModalOpen(false);
-    };
-
-    const handleCreateAndSwap = async () => {
-        if (!searchTerm.trim()) return;
-
-        try {
-            // Check if it exists first (case insensitive)
-            const { data: existing } = await supabase
-                .from('exercises')
-                .select('*')
-                .ilike('name', searchTerm.trim())
-                .maybeSingle();
-
-            let targetEx: Exercise;
-
-            if (existing) {
-                targetEx = existing as Exercise;
-            } else {
-                // Create new exercise
-                const { data: created, error } = await supabase
-                    .from('exercises')
-                    .insert([{
-                        name: searchTerm.trim(),
-                        muscle_group: exercise?.muscle_group || null,
-                        equipment: 'Otro' // Default for quick swap
-                    }])
-                    .select('*')
-                    .single();
-
-                if (error) throw error;
-                targetEx = created as Exercise;
-                refetchEx(); // Update list of all exercises
-            }
-
-            handleSwapExercise(targetEx);
-        } catch (e) {
-            console.error(e);
-        }
+        // Force re-render by navigating to same page
+        navigate(`/exercise/${exerciseId}`, { replace: true });
     };
 
     const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,15 +182,15 @@ export default function ExerciseDetail() {
     };
 
     const handleRevertSwap = () => {
-        const swapKey = `treno_swap_${todayDate}`;
+        const swapKey = `treno_equip_swap_${todayDate}`;
         const swapsStr = localStorage.getItem(swapKey);
-        if (!swapsStr || !swappedFromId) return;
+        if (!swapsStr) return;
 
         const swaps = JSON.parse(swapsStr);
-        delete swaps[swappedFromId];
+        delete swaps[exerciseId];
         localStorage.setItem(swapKey, JSON.stringify(swaps));
 
-        navigate(`/exercise/${swappedFromId}`, { replace: true });
+        navigate(`/exercise/${exerciseId}`, { replace: true });
     };
 
     const handleDeletePhoto = async () => {
@@ -330,75 +278,42 @@ export default function ExerciseDetail() {
                     <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
                         <ArrowLeft className="w-6 h-6" />
                     </Button>
-                    <h1 className="text-xl font-bold truncate max-w-[200px]">{exercise?.name}</h1>
+                    <h1 className="text-xl font-bold truncate max-w-[200px]">
+                        {exercise?.name}
+                        {activeEquipSwap && (
+                            <span className="text-xs text-primary font-normal ml-2">({activeEquipSwap})</span>
+                        )}
+                    </h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Dialog open={isSwapModalOpen} onOpenChange={(open) => {
-                        setIsSwapModalOpen(open);
-                        if (open && exercise) {
-                            // Pre-fill search with a "clean" name to show variants
-                            const cleanName = exercise.name
-                                .replace(/máquina|machine|polea|pulley/gi, '')
-                                .trim();
-                            setSearchTerm(cleanName);
-                        }
-                    }}>
+                    <Dialog open={isSwapModalOpen} onOpenChange={setIsSwapModalOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="icon" className="rounded-full shadow-sm">
                                 <Repeat size={18} className="text-primary" />
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-md w-[90vw] p-4 flex flex-col gap-4">
+                        <DialogContent className="max-w-sm w-[85vw] p-5 flex flex-col gap-5">
                             <DialogHeader>
-                                <DialogTitle>Sustituir Ejercicio</DialogTitle>
+                                <DialogTitle>Cambiar Variante</DialogTitle>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Equipo actual: <span className="font-semibold text-foreground">{activeEquipSwap || exercise?.equipment || 'Sin definir'}</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">Solo para hoy. Mañana vuelve a tu configuración original.</p>
                             </DialogHeader>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                                <Input
-                                    placeholder="Buscar variante..."
-                                    className="pl-9"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                {searchTerm.trim().length > 0 && (
-                                    <Button
-                                        className="h-10 w-full mt-2 gap-2"
-                                        onClick={handleCreateAndSwap}
-                                    >
-                                        <Plus size={16} /> Crear y usar "{searchTerm.trim()}"
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
-                                {filteredExercises.length > 0 ? (
-                                    filteredExercises.map((ex) => (
-                                        <Card
-                                            key={ex.id}
-                                            className="hover:bg-muted/30 border-border/40 transition-colors"
+                            <div className="grid grid-cols-2 gap-2">
+                                {EQUIPMENT_OPTIONS
+                                    .filter(eq => eq !== (exercise?.equipment || ''))
+                                    .map((eq) => (
+                                        <Button
+                                            key={eq}
+                                            variant={activeEquipSwap === eq ? 'default' : 'outline'}
+                                            className="h-12 text-sm font-medium"
+                                            onClick={() => handleEquipmentSwap(eq)}
                                         >
-                                            <CardContent className="p-3 flex items-center justify-between gap-4">
-                                                <div className="flex flex-col overflow-hidden">
-                                                    <div className="font-medium text-sm truncate">{ex.name}</div>
-                                                    <div className="text-xs text-muted-foreground truncate">{ex.muscle_group} • {ex.equipment}</div>
-                                                </div>
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    className="shrink-0 text-xs font-semibold h-8"
-                                                    onClick={() => handleSwapExercise(ex)}
-                                                >
-                                                    Seleccionar
-                                                </Button>
-                                            </CardContent>
-                                        </Card>
+                                            {eq}
+                                        </Button>
                                     ))
-                                ) : (
-                                    searchTerm.trim().length === 0 && (
-                                        <p className="text-center text-sm text-muted-foreground py-10 italic">
-                                            Busca un ejercicio existente o escribe uno nuevo para sustituir.
-                                        </p>
-                                    )
-                                )}
+                                }
                             </div>
                         </DialogContent>
                     </Dialog>
@@ -460,12 +375,12 @@ export default function ExerciseDetail() {
                 )}
 
                 {/* Substitution Banner */}
-                {swappedFromId && (
+                {activeEquipSwap && (
                     <Card className="bg-primary/5 border-primary/20">
                         <CardContent className="p-3 flex items-center justify-between gap-3 text-sm">
                             <div className="flex items-center gap-2 text-primary font-medium">
                                 <Repeat size={16} />
-                                Estas usando este ejercicio como variante hoy.
+                                Hoy con <span className="font-bold">{activeEquipSwap}</span>
                             </div>
                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleRevertSwap}>
                                 Revertir
