@@ -501,17 +501,26 @@ export default function ExerciseDetail() {
                         <div className="flex flex-col gap-2">
                             <Label>Sensación</Label>
                             <div className="grid grid-cols-3 gap-2">
-                                {(['normal', 'intensa', 'fallo'] as const).map((opt) => (
-                                    <Button
-                                        key={opt}
-                                        variant={feeling === opt ? 'default' : 'outline'}
-                                        size="sm"
-                                        className={`capitalize ${feeling === opt && opt === 'fallo' ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : ''}`}
-                                        onClick={() => setFeeling(opt)}
-                                    >
-                                        {opt}
-                                    </Button>
-                                ))}
+                                {(['normal', 'intensa', 'fallo'] as const).map((opt) => {
+                                    const isSelected = feeling === opt;
+                                    let selectedClass = '';
+                                    if (isSelected) {
+                                        if (opt === 'normal') selectedClass = 'bg-green-500 hover:bg-green-600 text-white border-green-500';
+                                        else if (opt === 'intensa') selectedClass = 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500';
+                                        else if (opt === 'fallo') selectedClass = 'bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive';
+                                    }
+                                    return (
+                                        <Button
+                                            key={opt}
+                                            variant={isSelected ? 'default' : 'outline'}
+                                            size="sm"
+                                            className={`capitalize ${selectedClass}`}
+                                            onClick={() => setFeeling(opt)}
+                                        >
+                                            {opt}
+                                        </Button>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -537,6 +546,18 @@ export default function ExerciseDetail() {
                         </Button>
                     </CardContent>
                 </Card>
+
+                {/* Mark as Completed button */}
+                {todayLog?.sets?.length ? (
+                    <Button
+                        variant="outline"
+                        className="w-full h-12 font-semibold text-green-500 border-green-500/40 hover:bg-green-500/10 hover:text-green-600 mt-2"
+                        onClick={() => navigate('/')}
+                    >
+                        ✓ Completado — Volver a la lista
+                    </Button>
+                ) : null}
+
             </div>
         </div>
     );
