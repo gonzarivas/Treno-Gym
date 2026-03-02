@@ -103,23 +103,38 @@ export default function Home() {
                                 {groupName}
                             </h2>
                             <div className="flex flex-col gap-2">
-                                {groupExercises.map((ex, index) => (
-                                    <Card
-                                        key={`${ex?.id}-${index}`}
-                                        className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50 shadow-none border-border/40"
-                                        onClick={() => navigate(`/exercise/${ex?.id}`)}
-                                    >
-                                        <CardContent className="p-2.5 px-3 flex justify-between items-center gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-7 h-7 rounded-sm bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                                                    {index + 1}
+                                {groupExercises.map((ex, index) => {
+                                    const todayDate = new Date().toISOString().split('T')[0];
+                                    const swapKey = `treno_swap_${todayDate}`;
+                                    const swapsStr = localStorage.getItem(swapKey);
+                                    const swaps = swapsStr ? JSON.parse(swapsStr) : {};
+                                    const variantId = swaps[ex.id!];
+
+                                    return (
+                                        <Card
+                                            key={`${ex?.id}-${index}`}
+                                            className="active:scale-[0.98] transition-transform cursor-pointer hover:border-primary/50 shadow-none border-border/40"
+                                            onClick={() => navigate(`/exercise/${variantId || ex?.id}`)}
+                                        >
+                                            <CardContent className="p-2.5 px-3 flex justify-between items-center gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-7 h-7 rounded-sm bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-sm">{ex?.name}</span>
+                                                        {variantId && (
+                                                            <span className="text-[10px] text-primary font-bold uppercase tracking-tighter">
+                                                                Sustituido por variante
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <span className="font-medium text-sm">{ex?.name}</span>
-                                            </div>
-                                            <ChevronRight className="text-muted-foreground/50" size={16} />
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                                                <ChevronRight className="text-muted-foreground/50" size={16} />
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         </div>
                     ))

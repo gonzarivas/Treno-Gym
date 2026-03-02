@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, Repeat, Search } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -21,7 +21,8 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter
+    DialogFooter,
+    DialogTrigger
 } from '../components/ui/dialog';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
@@ -75,6 +76,8 @@ export default function ExerciseDetail() {
     const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
     const [feeling, setFeeling] = useState<'normal' | 'intensa' | 'fallo'>('normal');
     const [isUnilateral, setIsUnilateral] = useState(false);
+    const [searchParams] = useState(new URLSearchParams(window.location.search));
+    const swappedFromId = searchParams.get('swappedFrom');
 
     // Crop State
     const [selectedImageStr, setSelectedImageStr] = useState<string | null>(null);
@@ -82,6 +85,8 @@ export default function ExerciseDetail() {
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
     const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+    const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Get current date string (YYYY-MM-DD)
     const todayDate = new Date().toISOString().split('T')[0];
@@ -113,6 +118,41 @@ export default function ExerciseDetail() {
         },
         [exerciseId, todayDate]
     );
+
+    // Fetch all available exercises for the swap search
+    const { data: allExercises } = useSupabaseQuery(
+        async () => {
+            const { data, error } = await supabase
+                .from('exercises')
+                .select('*')
+                .order('name');
+            if (error) throw error;
+            return data as Exercise[];
+        },
+        []
+    );
+
+    const filteredExercises = allExercises?.filter(ex =>
+        ex.name.toLowerCase().includes(searchTerm.toLowerCase()) && ex.id !== exerciseId
+    ) || [];
+
+    const handleSwapExercise = (variant: Exercise) => {
+        if (!variant.id) return;
+
+        const swapKey = `treno_swap_${todayDate}`;
+        const existingSwapsStr = localStorage.getItem(swapKey);
+        const swaps: Record<number, number> = existingSwapsStr ? JSON.parse(existingSwapsStr) : {};
+
+        // exerciseId is the original ID (from routine)
+        // variant.id is what we are using today
+        swaps[exerciseId] = variant.id;
+
+        localStorage.setItem(swapKey, JSON.stringify(swaps));
+
+        // Navigate to the new exercise but keep context if needed
+        navigate(`/exercise/${variant.id}?swappedFrom=${exerciseId}`, { replace: true });
+        setIsSwapModalOpen(false);
+    };
 
     const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -153,6 +193,18 @@ export default function ExerciseDetail() {
             setIsCropModalOpen(false);
             setSelectedImageStr(null);
         }
+    };
+
+    const handleRevertSwap = () => {
+        const swapKey = `treno_swap_${todayDate}`;
+        const swapsStr = localStorage.getItem(swapKey);
+        if (!swapsStr || !swappedFromId) return;
+
+        const swaps = JSON.parse(swapsStr);
+        delete swaps[swappedFromId];
+        localStorage.setItem(swapKey, JSON.stringify(swaps));
+
+        navigate(`/exercise/${swappedFromId}`, { replace: true });
     };
 
     const handleDeletePhoto = async () => {
@@ -242,7 +294,48 @@ export default function ExerciseDetail() {
                     </Button>
                     <h1 className="text-xl font-bold truncate max-w-[200px]">{exercise?.name}</h1>
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
+                    <Dialog open={isSwapModalOpen} onOpenChange={setIsSwapModalOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="icon" className="rounded-full shadow-sm">
+                                <Repeat size={18} className="text-primary" />
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md w-[90vw] p-4 flex flex-col gap-4">
+                            <DialogHeader>
+                                <DialogTitle>Sustituir Ejercicio</DialogTitle>
+                            </DialogHeader>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                                <Input
+                                    placeholder="Buscar variante..."
+                                    className="pl-9"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                                {filteredExercises.length > 0 ? (
+                                    filteredExercises.map((ex) => (
+                                        <Card
+                                            key={ex.id}
+                                            className="cursor-pointer hover:bg-muted/50 border-border/40"
+                                            onClick={() => handleSwapExercise(ex)}
+                                        >
+                                            <CardContent className="p-3">
+                                                <div className="font-medium text-sm">{ex.name}</div>
+                                                <div className="text-xs text-muted-foreground">{ex.muscle_group} • {ex.equipment}</div>
+                                            </CardContent>
+                                        </Card>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-sm text-muted-foreground py-4 italic">
+                                        No se encontraron otros ejercicios.
+                                    </p>
+                                )}
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                     <input
                         id="photo-upload-nav"
                         type="file"
@@ -298,6 +391,21 @@ export default function ExerciseDetail() {
                             </Button>
                         </div>
                     </div>
+                )}
+
+                {/* Substitution Banner */}
+                {swappedFromId && (
+                    <Card className="bg-primary/5 border-primary/20">
+                        <CardContent className="p-3 flex items-center justify-between gap-3 text-sm">
+                            <div className="flex items-center gap-2 text-primary font-medium">
+                                <Repeat size={16} />
+                                Estas usando este ejercicio como variante hoy.
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleRevertSwap}>
+                                Revertir
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Today's Sets History */}
