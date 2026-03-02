@@ -15,6 +15,16 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { Plus, Trash2 } from 'lucide-react';
 
 const EQUIPMENT_OPTIONS = ['Mancuernas', 'Barra', 'Máquina', 'Polea', 'Peso Corporal', 'Otro'];
@@ -57,6 +67,7 @@ export default function RoutineBuilder() {
     const [showAutocomplete, setShowAutocomplete] = useState(false);
     const [newExerciseEquip, setNewExerciseEquip] = useState('');
     const [newExerciseMuscle, setNewExerciseMuscle] = useState('');
+    const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
     // Fetch Routine Day
     const { data: routineDay, isLoading: isRoutineDayLoading, refetch: refetchRoutineDay } = useSupabaseQuery(
@@ -149,10 +160,6 @@ export default function RoutineBuilder() {
     const handleRemoveExerciseFromDay = async (exerciseId: number) => {
         if (!routineDay || routineDay.id === undefined) return;
 
-        if (!window.confirm("¿Seguro que deseas eliminar este ejercicio? Esto también eliminará su historial de series de la base de datos de forma permanente.")) {
-            return;
-        }
-
         try {
             // First delete series related to this exercise
             await supabase.from('series').delete().eq('exercise_id', exerciseId);
@@ -176,7 +183,8 @@ export default function RoutineBuilder() {
         }
     };
 
-    const isLoading = isRoutineDayLoading || isExercisesLoading;
+    const isLoading = isRoutineDayLoading || isExercisesLoading ||
+        (routineDay && routineDay.exercise_ids?.length > 0 && exercises === undefined);
 
     return (
         <div className="p-4 flex flex-col gap-6">
@@ -327,7 +335,7 @@ export default function RoutineBuilder() {
                                     variant="ghost"
                                     size="icon"
                                     className="text-destructive hover:bg-destructive/10"
-                                    onClick={() => ex.id && handleRemoveExerciseFromDay(ex.id)}
+                                    onClick={() => ex.id && setPendingDeleteId(ex.id)}
                                 >
                                     <Trash2 size={18} />
                                 </Button>
@@ -336,6 +344,32 @@ export default function RoutineBuilder() {
                     ))
                 )}
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={pendingDeleteId !== null} onOpenChange={(open) => !open && setPendingDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar este ejercicio?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esto también eliminará su historial de series de la base de datos de forma permanente.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                            onClick={() => {
+                                if (pendingDeleteId) {
+                                    handleRemoveExerciseFromDay(pendingDeleteId);
+                                }
+                                setPendingDeleteId(null);
+                            }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

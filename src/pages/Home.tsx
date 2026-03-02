@@ -52,7 +52,12 @@ export default function Home() {
         [todayRoutine]
     );
 
-    const isLoading = isRoutineLoading || isExercisesLoading;
+    // Consider loading if:
+    // 1. Routine is loading, OR
+    // 2. Exercises query is loading, OR
+    // 3. We have a routine with exercises but exercises data hasn't arrived yet
+    const isLoading = isRoutineLoading || isExercisesLoading ||
+        (todayRoutine && todayRoutine.exercise_ids?.length > 0 && exercises === undefined);
 
     // Group exercises by muscle group
     const groupedExercises = useMemo(() => {
