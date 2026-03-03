@@ -211,16 +211,44 @@ export default function ExerciseDetail() {
         return { bg: 'bg-red-500', hover: 'hover:bg-red-600', border: 'border-red-500', text: 'text-red-500', cardBorder: 'border-red-500/40', cardBg: 'bg-red-500/5' };
     };
 
+    const totalSeriesObjetivo = 4;
+
     const calculateFatigue = (sets: SetLog[]) => {
+        const serieActual = sets.length;
         const fatigaAcumulada = sets.reduce((acc, s) => {
             const setRir = s.rir ?? 3;
             return acc + (4 - setRir) * s.reps;
         }, 0);
 
-        if (fatigaAcumulada < 15) return { valor: fatigaAcumulada, estado: 'Baja', mensaje: 'Buen inicio. Mantén RIR 2–3.', color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5' };
-        if (fatigaAcumulada < 30) return { valor: fatigaAcumulada, estado: 'Moderada', mensaje: 'Zona óptima para hipertrofia. Mantén RIR 1–2.', color: 'text-yellow-400', bgColor: 'border-yellow-500/30 bg-yellow-500/5' };
-        if (fatigaAcumulada < 45) return { valor: fatigaAcumulada, estado: 'Alta', mensaje: 'Estímulo alto. Considera que esta sea tu última serie.', color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5' };
-        return { valor: fatigaAcumulada, estado: 'Muy Alta', mensaje: 'Fatiga excesiva. Recomendado detener el ejercicio.', color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5' };
+        const lastSet = sets[sets.length - 1];
+        const lastRir = lastSet?.rir ?? 3;
+        const lastWeight = lastSet?.weight ?? 0;
+        const lastUnit = lastSet?.unit ?? 'kg';
+
+        // Primera serie al fallo → sugerir peso reducido
+        if (serieActual === 1 && lastRir === 0) {
+            const pesoReducido5 = Math.round(lastWeight * 0.9 * 10) / 10;
+            const pesoReducido10 = Math.round(lastWeight * 0.85 * 10) / 10;
+            return {
+                valor: fatigaAcumulada,
+                estado: 'Alta',
+                mensaje: `Primera serie al fallo. Reduce a ${pesoReducido5}–${pesoReducido10} ${lastUnit} para mantener RIR 1–2.`,
+                color: 'text-orange-400',
+                bgColor: 'border-orange-500/30 bg-orange-500/5'
+            };
+        }
+
+        if (fatigaAcumulada < 40) return { valor: fatigaAcumulada, estado: 'Baja', mensaje: 'Buen inicio. Mantén RIR 2.', color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5' };
+        if (fatigaAcumulada < 80) return { valor: fatigaAcumulada, estado: 'Moderada', mensaje: 'Zona óptima. Mantén RIR 1–2.', color: 'text-yellow-400', bgColor: 'border-yellow-500/30 bg-yellow-500/5' };
+
+        if (fatigaAcumulada < 120) {
+            if (serieActual >= totalSeriesObjetivo) {
+                return { valor: fatigaAcumulada, estado: 'Alta', mensaje: 'Estímulo alto. Puedes cerrar aquí.', color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5' };
+            }
+            return { valor: fatigaAcumulada, estado: 'Alta', mensaje: 'Fatiga alta. Mantén RIR 1 en la siguiente.', color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5' };
+        }
+
+        return { valor: fatigaAcumulada, estado: 'Muy Alta', mensaje: 'Fatiga excesiva. Recomendado terminar el ejercicio.', color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5' };
     };
 
     const fatigue = todayLog?.sets?.length ? calculateFatigue(todayLog.sets) : null;
@@ -417,11 +445,9 @@ export default function ExerciseDetail() {
                     <div className="flex items-center justify-between px-1">
                         <h2 className="font-semibold text-lg flex items-center gap-2">
                             Series de Hoy
-                            {todayLog?.sets?.length ? (
-                                <span className="bg-primary/20 text-primary text-xs w-6 h-6 flex items-center justify-center rounded-full">
-                                    {todayLog.sets.length}
-                                </span>
-                            ) : null}
+                            <span className="bg-primary/20 text-primary text-xs px-2 h-6 flex items-center justify-center rounded-full">
+                                {todayLog?.sets?.length ?? 0}/{totalSeriesObjetivo}
+                            </span>
                         </h2>
                     </div>
 
