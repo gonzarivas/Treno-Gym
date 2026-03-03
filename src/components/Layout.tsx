@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Calendar, BarChart2 } from 'lucide-react';
+import { Home, Calendar, BarChart2, ClockArrowUp } from 'lucide-react';
 
 export default function Layout() {
     return (
@@ -10,7 +10,7 @@ export default function Layout() {
             </main>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 w-full bg-card border-t border-border px-2 py-3 grid grid-cols-3 items-center z-50 safe-area-pb">
+            <nav className="fixed bottom-0 w-full bg-card border-t border-border px-2 py-3 grid grid-cols-4 items-center z-50 safe-area-pb">
                 <NavLink
                     to="/"
                     className={({ isActive }) =>
@@ -18,8 +18,19 @@ export default function Layout() {
                         }`
                     }
                 >
-                    <Home size={24} />
-                    <span className="text-xs font-medium">Inicio</span>
+                    <Home size={22} />
+                    <span className="text-[10px] font-medium">Inicio</span>
+                </NavLink>
+
+                <NavLink
+                    to="/historial"
+                    className={({ isActive }) =>
+                        `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                        }`
+                    }
+                >
+                    <ClockArrowUp size={22} />
+                    <span className="text-[10px] font-medium">Historial</span>
                 </NavLink>
 
                 <NavLink
@@ -29,8 +40,8 @@ export default function Layout() {
                         }`
                     }
                 >
-                    <Calendar size={24} />
-                    <span className="text-xs font-medium">Rutina</span>
+                    <Calendar size={22} />
+                    <span className="text-[10px] font-medium">Rutina</span>
                 </NavLink>
 
                 <NavLink
@@ -40,8 +51,8 @@ export default function Layout() {
                         }`
                     }
                 >
-                    <BarChart2 size={24} />
-                    <span className="text-xs font-medium">Estadísticas</span>
+                    <BarChart2 size={22} />
+                    <span className="text-[10px] font-medium">Estadísticas</span>
                 </NavLink>
             </nav>
         </div>
