@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2, Repeat } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, Repeat, Info } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -74,7 +74,8 @@ export default function ExerciseDetail() {
     const [reps, setReps] = useState('');
     const [weight, setWeight] = useState('');
     const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
-    const [feeling, setFeeling] = useState<'normal' | 'intensa' | 'fallo'>('normal');
+    const [rir, setRir] = useState<number>(3);
+    const [showRirInfo, setShowRirInfo] = useState(false);
     const [isUnilateral, setIsUnilateral] = useState(false);
 
     // Crop State
@@ -202,6 +203,28 @@ export default function ExerciseDetail() {
         if (!error) refetchEx();
     };
 
+    // Fatigue calculation helpers
+    const getRirColor = (rirVal: number) => {
+        if (rirVal >= 3) return { bg: 'bg-green-500', hover: 'hover:bg-green-600', border: 'border-green-500', text: 'text-green-500', cardBorder: 'border-green-500/40', cardBg: 'bg-green-500/5' };
+        if (rirVal === 2) return { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600', border: 'border-yellow-500', text: 'text-yellow-500', cardBorder: 'border-yellow-500/40', cardBg: 'bg-yellow-500/5' };
+        if (rirVal === 1) return { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-500', text: 'text-orange-500', cardBorder: 'border-orange-500/40', cardBg: 'bg-orange-500/5' };
+        return { bg: 'bg-red-500', hover: 'hover:bg-red-600', border: 'border-red-500', text: 'text-red-500', cardBorder: 'border-red-500/40', cardBg: 'bg-red-500/5' };
+    };
+
+    const calculateFatigue = (sets: SetLog[]) => {
+        const fatigaAcumulada = sets.reduce((acc, s) => {
+            const setRir = s.rir ?? 3;
+            return acc + (4 - setRir) * s.reps;
+        }, 0);
+
+        if (fatigaAcumulada < 15) return { valor: fatigaAcumulada, estado: 'Baja', mensaje: 'Buen inicio. Mantén RIR 2–3.', color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5' };
+        if (fatigaAcumulada < 30) return { valor: fatigaAcumulada, estado: 'Moderada', mensaje: 'Zona óptima para hipertrofia. Mantén RIR 1–2.', color: 'text-yellow-400', bgColor: 'border-yellow-500/30 bg-yellow-500/5' };
+        if (fatigaAcumulada < 45) return { valor: fatigaAcumulada, estado: 'Alta', mensaje: 'Estímulo alto. Considera que esta sea tu última serie.', color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5' };
+        return { valor: fatigaAcumulada, estado: 'Muy Alta', mensaje: 'Fatiga excesiva. Recomendado detener el ejercicio.', color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5' };
+    };
+
+    const fatigue = todayLog?.sets?.length ? calculateFatigue(todayLog.sets) : null;
+
     const handleAddSet = async () => {
         if (!reps || !weight) return;
 
@@ -209,7 +232,7 @@ export default function ExerciseDetail() {
             reps: Number(reps),
             weight: Number(weight),
             unit,
-            feeling,
+            rir,
             isUnilateral
         };
 
@@ -231,7 +254,7 @@ export default function ExerciseDetail() {
         }
 
         setReps('');
-        setFeeling('normal');
+        setRir(3);
     };
 
     const handleRemoveSet = async (indexToRemove: number) => {
@@ -408,50 +431,67 @@ export default function ExerciseDetail() {
                         </div>
                     ) : (
                         <div className="flex flex-col gap-3">
-                            {todayLog.sets.map((set, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`flex items-center justify-between p-4 rounded-xl border ${set.feeling === 'fallo' ? 'border-destructive/40 bg-destructive/5' :
-                                        set.feeling === 'intensa' ? 'border-orange-500/40 bg-orange-500/5' :
-                                            'border-border bg-card'
-                                        } shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex flex-col items-center justify-center w-8 h-8 rounded-full bg-background border border-border group font-bold text-sm text-muted-foreground">
-                                            {idx + 1}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-lg leading-tight">
-                                                {set.weight} {set.unit} <span className="text-muted-foreground mx-1 font-normal">×</span> {set.reps} reps
-                                            </span>
-                                            <div className="flex gap-2 text-xs mt-1">
-                                                <span className={`capitalize font-medium ${set.feeling === 'fallo' ? 'text-destructive' :
-                                                    set.feeling === 'intensa' ? 'text-orange-500' : 'text-green-500'
-                                                    }`}>
-                                                    {set.feeling}
+                            {todayLog.sets.map((set, idx) => {
+                                const setRirVal = set.rir ?? 3;
+                                const rirColors = getRirColor(setRirVal);
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`flex items-center justify-between p-4 rounded-xl border ${rirColors.cardBorder} ${rirColors.cardBg} shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex flex-col items-center justify-center w-8 h-8 rounded-full bg-background border border-border group font-bold text-sm text-muted-foreground">
+                                                {idx + 1}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-lg leading-tight">
+                                                    {set.weight} {set.unit} <span className="text-muted-foreground mx-1 font-normal">×</span> {set.reps} reps
                                                 </span>
-                                                {set.isUnilateral && (
-                                                    <>
-                                                        <span className="text-muted-foreground">•</span>
-                                                        <span className="text-muted-foreground italic">Unilateral</span>
-                                                    </>
-                                                )}
+                                                <div className="flex gap-2 text-xs mt-1">
+                                                    <span className={`font-medium ${rirColors.text}`}>
+                                                        RIR {setRirVal}
+                                                    </span>
+                                                    {set.isUnilateral && (
+                                                        <>
+                                                            <span className="text-muted-foreground">•</span>
+                                                            <span className="text-muted-foreground italic">Unilateral</span>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mr-2"
+                                            onClick={() => handleRemoveSet(idx)}
+                                        >
+                                            <Trash2 size={18} />
+                                        </Button>
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mr-2"
-                                        onClick={() => handleRemoveSet(idx)}
-                                    >
-                                        <Trash2 size={18} />
-                                    </Button>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
+
+                {/* Fatigue Display */}
+                {fatigue && (
+                    <Card className={`shadow-sm mt-2 overflow-hidden rounded-xl border ${fatigue.bgColor}`}>
+                        <CardContent className="p-4 flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">🔥</span>
+                                <span className="font-semibold text-sm">
+                                    Fatiga Acumulada: <span className={`font-bold ${fatigue.color}`}>{fatigue.estado}</span>
+                                </span>
+                            </div>
+                            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                                <span className="text-base">💡</span>
+                                <span>Sugerencia: {fatigue.mensaje}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Add Set Form */}
                 <Card className="shadow-sm border-primary/20 bg-card/50 mt-4 overflow-hidden rounded-xl border">
@@ -498,31 +538,61 @@ export default function ExerciseDetail() {
                             </div>
                         </div>
 
+                        {/* RIR Selector */}
                         <div className="flex flex-col gap-2">
-                            <Label>Sensación</Label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['normal', 'intensa', 'fallo'] as const).map((opt) => {
-                                    const isSelected = feeling === opt;
-                                    let selectedClass = '';
-                                    if (isSelected) {
-                                        if (opt === 'normal') selectedClass = 'bg-green-500 hover:bg-green-600 text-white border-green-500';
-                                        else if (opt === 'intensa') selectedClass = 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500';
-                                        else if (opt === 'fallo') selectedClass = 'bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive';
-                                    }
+                            <Label>RIR</Label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {([3, 2, 1, 0] as const).map((rirOpt) => {
+                                    const isSelected = rir === rirOpt;
+                                    const colors = getRirColor(rirOpt);
+                                    const selectedClass = isSelected
+                                        ? `${colors.bg} ${colors.hover} text-white ${colors.border}`
+                                        : '';
                                     return (
                                         <Button
-                                            key={opt}
+                                            key={rirOpt}
                                             variant={isSelected ? 'default' : 'outline'}
                                             size="sm"
-                                            className={`capitalize ${selectedClass}`}
-                                            onClick={() => setFeeling(opt)}
+                                            className={`font-bold text-base ${selectedClass}`}
+                                            onClick={() => setRir(rirOpt)}
                                         >
-                                            {opt}
+                                            {rirOpt}
                                         </Button>
                                     );
                                 })}
                             </div>
                         </div>
+
+                        {/* RIR Info Toggle */}
+                        <button
+                            type="button"
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer -mt-1"
+                            onClick={() => setShowRirInfo(!showRirInfo)}
+                        >
+                            <Info size={14} />
+                            <span>¿Qué es RIR?</span>
+                        </button>
+
+                        {showRirInfo && (
+                            <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-sm flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200 -mt-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block flex-shrink-0"></span>
+                                    <span><strong>RIR 3-4</strong> <span className="text-muted-foreground">··</span> Quedan 3-4 reps en reserva</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block flex-shrink-0"></span>
+                                    <span><strong>RIR 2</strong> <span className="text-muted-foreground">··</span> Duro pero controlado</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block flex-shrink-0"></span>
+                                    <span><strong>RIR 1</strong> <span className="text-muted-foreground">···</span> Casi al fallo</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block flex-shrink-0"></span>
+                                    <span><strong>RIR 0</strong> <span className="text-muted-foreground">···</span> Fallo muscular</span>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center space-x-2 pt-1 border-t border-border/50">
                             <input

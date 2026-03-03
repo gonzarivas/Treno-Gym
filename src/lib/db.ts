@@ -22,7 +22,8 @@ export interface SetLog {
     reps: number;
     weight: number;
     unit: 'kg' | 'lb';
-    feeling: 'normal' | 'intensa' | 'fallo';
+    feeling?: 'normal' | 'intensa' | 'fallo';
+    rir: number;
     isUnilateral: boolean;
 }
 
