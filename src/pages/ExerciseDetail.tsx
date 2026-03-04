@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 import { supabase } from '../lib/db';
@@ -129,6 +129,35 @@ export default function ExerciseDetail() {
         },
         [exerciseId, todayDate]
     );
+
+    // Dynamically set default RIR based on existing sets
+    useEffect(() => {
+        if (!exercise) return;
+
+        const totalSeriesObjetivo = exercise.target_sets || 3;
+        const currentSetNum = (todayLog?.sets?.length || 0) + 1;
+        const seriesRestantes = totalSeriesObjetivo - currentSetNum;
+
+        // Si ya terminamos, por defecto RIR 0
+        if (currentSetNum > totalSeriesObjetivo) {
+            setRir(0);
+            return;
+        }
+
+        // Si es la última serie o pasamos
+        if (seriesRestantes === 0) {
+            setRir(0);
+        } else if (seriesRestantes === 1) {
+            // Penúltima serie
+            setRir(1);
+        } else if (currentSetNum === 1) {
+            // Primera serie
+            setRir(totalSeriesObjetivo === 2 ? 1 : 2);
+        } else {
+            // Series intermedias
+            setRir(2);
+        }
+    }, [todayLog?.sets?.length, exercise?.target_sets]);
 
     const handleEquipmentSwap = (newEquipment: string) => {
         const swapKey = `treno_equip_swap_${todayDate}`;
@@ -408,6 +437,14 @@ export default function ExerciseDetail() {
         );
     }
 
+    // Calcular RIR inicial para la advertencia
+    const getInitialRirObjective = () => {
+        const targetSets = exercise?.target_sets || 3;
+        if (targetSets === 1) return "0 (Fallo técnico)";
+        if (targetSets === 2) return "1";
+        return "2";
+    };
+
     return (
         <div className="flex flex-col min-h-full pb-20 bg-background">
             {/* Header */}
@@ -540,8 +577,25 @@ export default function ExerciseDetail() {
                     </div>
 
                     {!todayLog?.sets?.length ? (
-                        <div className="text-center py-6 px-4 border border-dashed rounded-xl border-border/60 bg-muted/20">
-                            <p className="text-muted-foreground text-sm">Aún no has registrado series hoy.</p>
+                        <div className="flex flex-col gap-3">
+                            <div className="text-center py-6 px-4 border border-dashed rounded-xl border-border/60 bg-muted/20">
+                                <p className="text-muted-foreground text-sm">Aún no has registrado series hoy.</p>
+                            </div>
+
+                            <Card className="shadow-sm overflow-hidden rounded-xl border border-blue-500/30 bg-blue-500/5">
+                                <CardContent className="px-4 py-3 flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">🎯</span>
+                                        <span className="font-semibold text-sm text-blue-500">
+                                            Objetivo Inicial
+                                        </span>
+                                    </div>
+                                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                                        <span className="text-base">💡</span>
+                                        <span>Empezando ejercicio ({exercise.target_sets || 3} series totales). Para aguantar la fatiga, intenta alcanzar un <strong>RIR {getInitialRirObjective()}</strong> en esta primera serie.</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-3">
@@ -678,47 +732,64 @@ export default function ExerciseDetail() {
                         </div>
 
                         {/* RIR Info Toggle */}
-                        <button
-                            type="button"
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer -mt-1"
-                            onClick={() => setShowRirInfo(!showRirInfo)}
-                        >
-                            <Info size={14} />
-                            <span>¿Qué es RIR?</span>
-                        </button>
+                        <div className="flex justify-end -mt-2">
+                            <button
+                                type="button"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 border border-border/50 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95"
+                                onClick={() => setShowRirInfo(!showRirInfo)}
+                            >
+                                <Info size={14} className={showRirInfo ? "text-primary" : ""} />
+                                <span>¿Qué es RIR?</span>
+                            </button>
+                        </div>
 
                         {showRirInfo && (
-                            <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-sm flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200 -mt-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block flex-shrink-0"></span>
-                                    <span><strong>RIR 3-4</strong> <span className="text-muted-foreground">··</span> Quedan 3-4 reps en reserva</span>
+                            <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Repeticiones en Reserva</p>
+                                <div className="flex items-start gap-3">
+                                    <span className="w-3 h-3 mt-1 rounded-full bg-green-500 flex-shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.4)]"></span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-foreground">RIR 3-4</span>
+                                        <span className="text-muted-foreground leading-tight">Quedan 3-4 repeticiones en reserva (Lejos del fallo, ideal para calentar).</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block flex-shrink-0"></span>
-                                    <span><strong>RIR 2</strong> <span className="text-muted-foreground">··</span> Duro pero controlado</span>
+                                <div className="flex items-start gap-3">
+                                    <span className="w-3 h-3 mt-1 rounded-full bg-yellow-500 flex-shrink-0 shadow-[0_0_8px_rgba(234,179,8,0.4)]"></span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-foreground">RIR 2</span>
+                                        <span className="text-muted-foreground leading-tight">Quedan 2 repeticiones en reserva (Difícil pero controlable).</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block flex-shrink-0"></span>
-                                    <span><strong>RIR 1</strong> <span className="text-muted-foreground">···</span> Casi al fallo</span>
+                                <div className="flex items-start gap-3">
+                                    <span className="w-3 h-3 mt-1 rounded-full bg-orange-500 flex-shrink-0 shadow-[0_0_8px_rgba(249,115,22,0.4)]"></span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-foreground">RIR 1</span>
+                                        <span className="text-muted-foreground leading-tight">Queda 1 repetición en reserva (A una repetición de fallar, límite seguro).</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block flex-shrink-0"></span>
-                                    <span><strong>RIR 0</strong> <span className="text-muted-foreground">···</span> Fallo muscular</span>
+                                <div className="flex items-start gap-3">
+                                    <span className="w-3 h-3 mt-1 rounded-full bg-red-500 flex-shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-foreground">RIR 0</span>
+                                        <span className="text-muted-foreground leading-tight">Ninguna repetición en reserva (Fallo técnico, no podrías hacer ni una más con buena forma).</span>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        <div className="flex items-center space-x-2 pt-1 border-t border-border/50">
-                            <input
-                                type="checkbox"
-                                id="unilateral"
-                                checked={isUnilateral}
-                                onChange={(e) => setIsUnilateral(e.target.checked)}
-                                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 bg-background"
-                            />
-                            <Label htmlFor="unilateral" className="font-normal cursor-pointer select-none">
-                                Ejercicio unilateral (ej. a una mano)
-                            </Label>
+                        <div className="flex items-center gap-3 pt-3 border-t border-border/40">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isUnilateral}
+                                    onChange={(e) => setIsUnilateral(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                            <span className="text-sm font-medium text-foreground cursor-pointer select-none" onClick={() => setIsUnilateral(!isUnilateral)}>
+                                Ejercicio unilateral <span className="text-muted-foreground font-normal text-xs ml-1">(ej. a una mano)</span>
+                            </span>
                         </div>
 
                         <Button

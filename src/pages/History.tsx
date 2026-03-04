@@ -166,7 +166,7 @@ export default function History() {
     const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
 
     return (
-        <div className="flex flex-col h-full" ref={scrollRef}>
+        <div className="flex flex-col h-full overflow-y-auto" ref={scrollRef}>
             {/* Header */}
             <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/50">
                 <div className="flex items-center justify-between px-4 py-3">
@@ -210,7 +210,7 @@ export default function History() {
             </div>
 
             {/* Calendar grid */}
-            <div className="flex-1 px-2 pt-1 pb-4">
+            <div className="flex-1 px-2 pt-1 pb-24">
                 {isLogsLoading ? (
                     <div className="grid grid-cols-7 gap-1 py-2">
                         {Array.from({ length: 35 }).map((_, i) => (
