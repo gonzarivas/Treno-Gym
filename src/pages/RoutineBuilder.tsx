@@ -68,6 +68,7 @@ export default function RoutineBuilder() {
     const [newExerciseEquip, setNewExerciseEquip] = useState('');
     const [newExerciseMuscle, setNewExerciseMuscle] = useState('');
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+    const [newExerciseSets, setNewExerciseSets] = useState<number>(3);
 
     // Fetch Routine Day
     const { data: routineDay, isLoading: isRoutineDayLoading, refetch: refetchRoutineDay } = useSupabaseQuery(
@@ -114,6 +115,8 @@ export default function RoutineBuilder() {
 
             if (existingEx && existingEx.length > 0) {
                 exerciseId = existingEx[0].id;
+                // Update target sets of existing exercise if it's being added again to the routine
+                await supabase.from('exercises').update({ target_sets: newExerciseSets }).eq('id', exerciseId);
             } else {
                 // Create the exercise
                 const { data: exData, error: exError } = await supabase
@@ -121,7 +124,8 @@ export default function RoutineBuilder() {
                     .insert([{
                         name: newExerciseName.trim(),
                         muscle_group: newExerciseMuscle || null,
-                        equipment: newExerciseEquip || null
+                        equipment: newExerciseEquip || null,
+                        target_sets: newExerciseSets
                     }])
                     .select('id')
                     .single();
@@ -150,6 +154,7 @@ export default function RoutineBuilder() {
             setNewExerciseName('');
             setNewExerciseMuscle('');
             setNewExerciseEquip('');
+            setNewExerciseSets(3);
             setIsAddingMode(false);
             refetchRoutineDay(); // Refetch routine day to get updated exercise_ids
         } catch (e) {
@@ -306,6 +311,32 @@ export default function RoutineBuilder() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label className="text-right">Series</Label>
+                                    <div className="col-span-3 flex flex-col gap-1">
+                                        <Select value={newExerciseSets.toString()} onValueChange={(v) => setNewExerciseSets(Number(v))}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {[1, 2, 3, 4, 5, 6].map(num => (
+                                                    <SelectItem key={num} value={num.toString()}>{num} {num === 1 ? 'Serie' : 'Series'}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {newExerciseSets > 1 && (
+                                            <p className="text-[11px] text-muted-foreground mt-1 leading-tight">
+                                                Estrategia RIR: {
+                                                    newExerciseSets === 2 ? "S1: RIR 1 → S2: RIR 0" :
+                                                        newExerciseSets === 3 ? "S1: RIR 2 → S2: RIR 1 → S3: RIR 0" :
+                                                            newExerciseSets === 4 ? "S1-S2: RIR 2 → S3: RIR 1 → S4: RIR 0" :
+                                                                "Conservar RIR 2-3 inicial, terminar en RIR 0"
+                                                }
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

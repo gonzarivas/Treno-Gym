@@ -211,12 +211,11 @@ export default function ExerciseDetail() {
         return { bg: 'bg-red-500', hover: 'hover:bg-red-600', border: 'border-red-500', text: 'text-red-500', cardBorder: 'border-red-500/40', cardBg: 'bg-red-500/5' };
     };
 
-    const totalSeriesObjetivo = 4;
+    const totalSeriesObjetivo = exercise?.target_sets || 3;
 
     const calculateFatigue = (sets: SetLog[]) => {
         const serieActual = sets.length;
 
-        // Mantenemos tu cálculo de fatiga para mostrar el valor numérico
         const fatigaAcumulada = sets.reduce((acc, s) => {
             const setRir = s.rir ?? 3;
             return acc + (4 - setRir) * s.reps;
@@ -228,100 +227,11 @@ export default function ExerciseDetail() {
         const lastWeight = lastSet?.weight ?? 0;
         const lastUnit = lastSet?.unit ?? 'kg';
 
-        // Funciones auxiliares para calcular pesos de descarga (Back-off) redondeados
-        const pesoReducidoLeve = Math.round(lastWeight * 0.9 * 10) / 10; // -10%
-        const pesoReducidoFuerte = Math.round(lastWeight * 0.8 * 10) / 10; // -20%
+        const pesoReducidoLeve = Math.round(lastWeight * 0.9 * 10) / 10;
+        const pesoReducidoFuerte = Math.round(lastWeight * 0.8 * 10) / 10;
+        const seriesRestantes = totalSeriesObjetivo - serieActual;
 
-        // ----------------------------------------------------------------
-        // LÓGICA CONTEXTUAL SERIE POR SERIE
-        // ----------------------------------------------------------------
-
-        // === DESPUÉS DE LA SERIE 1 ===
-        if (serieActual === 1) {
-            if (lastRir === 0) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Fallo Prematuro',
-                    mensaje: `¡Peligro! Llegar al fallo en la S1 arruinará tus próximas series. Baja a ${pesoReducidoLeve} ${lastUnit} en la S2.`,
-                    color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5' // Rojo porque es un error grave
-                };
-            }
-            if (lastRir === 1) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Demasiado Intenso',
-                    mensaje: 'RIR 1 es mucha fatiga para empezar. Lo ideal es RIR 2-3. Mantén peso, pero tus repeticiones caerán fuerte en la S2.',
-                    color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5' // Naranja de advertencia
-                };
-            }
-            // RIR 2 o 3 (Ideal)
-            return {
-                valor: fatigaAcumulada, estado: 'Óptimo',
-                mensaje: '¡Excelente inicio! Guardaste energía (RIR 2-3). Mantén el peso y busca RIR 2 en la Serie 2.',
-                color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5' // Verde de éxito
-            };
-        }
-
-        // === DESPUÉS DE LA SERIE 2 ===
-        if (serieActual === 2) {
-
-            // 🚨 NUEVO CASO CRÍTICO: Fallo absoluto con 5 reps o menos
-            if (lastRir === 0 && lastReps <= 5) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Carga Excesiva',
-                    mensaje: `¡Fallo crítico! El peso es muy alto. Baja drásticamente a ${pesoReducidoFuerte} ${lastUnit} para poder hacer 8-12 reps en la S3.`,
-                    color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5' // Rojo, es un error grave
-                };
-            }
-
-            // Caso: Fallo (RIR 0) pero hizo buenas reps (ej. 8 o 9)
-            if (lastRir === 0) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Fallo Prematuro',
-                    mensaje: `Llegaste al fallo muy pronto. Haz un 'Back-off set' bajando a ${pesoReducidoLeve} ${lastUnit} para las series restantes.`,
-                    color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5'
-                };
-            }
-
-            if (lastRir > 2) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Muy Ligero',
-                    mensaje: 'Estás muy lejos del fallo. Deberías apretar más en la S3 (busca RIR 1).',
-                    color: 'text-blue-400', bgColor: 'border-blue-500/30 bg-blue-500/5'
-                };
-            }
-
-            // RIR 1 o 2 (Ideal)
-            return {
-                valor: fatigaAcumulada, estado: 'Óptimo',
-                mensaje: 'Buen ritmo. Mantén peso. La fatiga empieza a pesar, busca RIR 1 en la próxima.',
-                color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5'
-            };
-        }
-
-        // === DESPUÉS DE LA SERIE 3 (Penúltima) ===
-        if (serieActual === 3) {
-            if (lastReps <= 5 && lastRir <= 1) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Fatiga Alta',
-                    mensaje: `Tus reps cayeron mucho (≤5). Baja a ${pesoReducidoFuerte} ${lastUnit} para sacar 8-10 reps al fallo en la última.`,
-                    color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5'
-                };
-            }
-            if (lastRir > 1) {
-                return {
-                    valor: fatigaAcumulada, estado: 'Reserva Alta',
-                    mensaje: 'Te queda mucha gasolina. En la última serie ve al fallo absoluto (RIR 0) con este peso.',
-                    color: 'text-yellow-400', bgColor: 'border-yellow-500/30 bg-yellow-500/5'
-                };
-            }
-            // RIR 0 o 1 con buenas reps (Ideal)
-            return {
-                valor: fatigaAcumulada, estado: 'Óptimo',
-                mensaje: 'Preparado para el final. Mantén el peso y da el 100% (RIR 0) en tu última serie.',
-                color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5'
-            };
-        }
-
-        // === DESPUÉS DE LA SERIE 4 (Final del ejercicio) ===
+        // === FIN DEL EJERCICIO ===
         if (serieActual >= totalSeriesObjetivo) {
             if (lastRir > 0) {
                 return {
@@ -340,12 +250,10 @@ export default function ExerciseDetail() {
             if (lastRir === 0 && lastReps < 6) {
                 return {
                     valor: fatigaAcumulada, estado: 'Completado',
-                    mensaje: 'Llegaste al fallo pero con pocas reps. PRÓXIMA SESIÓN: Mantén peso o intenta descansar más entre series.',
+                    mensaje: 'Llegaste al fallo pero con pocas reps. PRÓXIMA SESIÓN: Mantén peso o recupérate mejor.',
                     color: 'text-blue-400', bgColor: 'border-blue-500/30 bg-blue-500/5'
                 };
             }
-
-            // Fallback genérico para el final
             return {
                 valor: fatigaAcumulada, estado: 'Completado',
                 mensaje: 'Ejercicio finalizado. Estímulo alto conseguido.',
@@ -353,11 +261,80 @@ export default function ExerciseDetail() {
             };
         }
 
-        // Fallback de seguridad (por si hay más de 4 series registradas)
+        // === PENÚLTIMA SERIE ===
+        if (seriesRestantes === 1) {
+            if (lastReps <= 5 && lastRir <= 1) {
+                return {
+                    valor: fatigaAcumulada, estado: 'Fatiga Alta',
+                    mensaje: `Tus reps cayeron mucho (≤5). Baja a ${pesoReducidoFuerte} ${lastUnit} para sacar buenas reps al fallo en la última.`,
+                    color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5'
+                };
+            }
+            if (lastRir > 1) {
+                return {
+                    valor: fatigaAcumulada, estado: 'Reserva Alta',
+                    mensaje: 'Te queda mucha gasolina. En la última serie ve al fallo absoluto (RIR 0) con este peso.',
+                    color: 'text-yellow-400', bgColor: 'border-yellow-500/30 bg-yellow-500/5'
+                };
+            }
+            return {
+                valor: fatigaAcumulada, estado: 'Óptimo',
+                mensaje: 'Preparado para el gran final. Mantén el peso y da el 100% (RIR 0) en tu última serie.',
+                color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5'
+            };
+        }
+
+        // === PRIMERA SERIE ===
+        if (serieActual === 1) {
+            if (lastRir === 0) {
+                return {
+                    valor: fatigaAcumulada, estado: 'Fallo Prematuro',
+                    mensaje: `¡Peligro! Llegar al fallo en la S1 arruinará tus próximas series. Baja a ${pesoReducidoLeve} ${lastUnit}.`,
+                    color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5'
+                };
+            }
+            if (lastRir === 1 && totalSeriesObjetivo > 2) {
+                return {
+                    valor: fatigaAcumulada, estado: 'Demasiado Intenso',
+                    mensaje: 'RIR 1 es mucha fatiga tan pronto. Lo ideal es RIR 2-3. Mantén peso, pero tus reps caerán.',
+                    color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5'
+                };
+            }
+            const obRir = totalSeriesObjetivo === 2 ? "1" : "2";
+            return {
+                valor: fatigaAcumulada, estado: 'Óptimo',
+                mensaje: `¡Excelente inicio! Guardaste energía. Mantén el peso y busca RIR ${obRir} en tu siguiente serie.`,
+                color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5'
+            };
+        }
+
+        // === SERIES INTERMEDIAS ===
+        if (lastRir === 0 && lastReps <= 5) {
+            return {
+                valor: fatigaAcumulada, estado: 'Carga Excesiva',
+                mensaje: `¡Fallo crítico! El peso es muy alto. Baja drásticamente a ${pesoReducidoFuerte} ${lastUnit}.`,
+                color: 'text-red-400', bgColor: 'border-red-500/30 bg-red-500/5'
+            };
+        }
+        if (lastRir === 0) {
+            return {
+                valor: fatigaAcumulada, estado: 'Fallo Prematuro',
+                mensaje: `Llegaste al fallo muy pronto. Haz un 'Back-off set' bajando a ${pesoReducidoLeve} ${lastUnit} para las próximas.`,
+                color: 'text-orange-400', bgColor: 'border-orange-500/30 bg-orange-500/5'
+            };
+        }
+        if (lastRir > 2) {
+            return {
+                valor: fatigaAcumulada, estado: 'Muy Ligero',
+                mensaje: 'Estás muy lejos del fallo. Deberías apretar más en la siguiente (busca RIR 1).',
+                color: 'text-blue-400', bgColor: 'border-blue-500/30 bg-blue-500/5'
+            };
+        }
+
         return {
-            valor: fatigaAcumulada, estado: 'Extra',
-            mensaje: 'Estás haciendo volumen extra. Vigila tu recuperación.',
-            color: 'text-gray-400', bgColor: 'border-gray-500/30 bg-gray-500/5'
+            valor: fatigaAcumulada, estado: 'Óptimo',
+            mensaje: 'Buen ritmo. Mantén carga. La fatiga empieza a pesar, busca acercarte más al fallo en la próxima.',
+            color: 'text-green-400', bgColor: 'border-green-500/30 bg-green-500/5'
         };
     };
 

@@ -16,6 +16,7 @@ export interface Exercise {
     photo_data?: string; // supabase uses snake_case natively or we map it
     muscle_group?: string;
     equipment?: string;
+    target_sets?: number;
 }
 
 export interface SetLog {
