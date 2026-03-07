@@ -26,6 +26,7 @@ import {
 } from '../components/ui/dialog';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
+import { getLocalDateString } from '../lib/utils';
 
 const createImage = (url: string) =>
     new Promise<HTMLImageElement>((resolve, reject) => {
@@ -86,8 +87,8 @@ export default function ExerciseDetail() {
     const [isCropModalOpen, setIsCropModalOpen] = useState(false);
     const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
 
-    // Get current date string (YYYY-MM-DD)
-    const todayDate = new Date().toISOString().split('T')[0];
+    // Get current date string (YYYY-MM-DD) based on local time
+    const todayDate = getLocalDateString();
 
     const EQUIPMENT_OPTIONS = ['Mancuernas', 'Barra', 'Máquina', 'Polea', 'Peso Corporal', 'Otro'];
 
@@ -123,6 +124,22 @@ export default function ExerciseDetail() {
                 .select('*')
                 .eq('exercise_id', exerciseId)
                 .eq('date', todayDate)
+                .single();
+            if (error && error.code !== 'PGRST116') throw error;
+            return data as WorkoutLog | null;
+        },
+        [exerciseId, todayDate]
+    );
+
+    const { data: previousLog } = useSupabaseQuery(
+        async () => {
+            const { data, error } = await supabase
+                .from('workout_logs')
+                .select('*')
+                .eq('exercise_id', exerciseId)
+                .lt('date', todayDate)
+                .order('date', { ascending: false })
+                .limit(1)
                 .single();
             if (error && error.code !== 'PGRST116') throw error;
             return data as WorkoutLog | null;
@@ -583,16 +600,16 @@ export default function ExerciseDetail() {
                             </div>
 
                             <Card className="shadow-sm overflow-hidden rounded-xl border border-blue-500/30 bg-blue-500/5">
-                                <CardContent className="px-4 py-3 flex flex-col gap-2">
+                                <CardContent className="px-3 py-2.5 flex flex-col gap-1.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-lg">🎯</span>
-                                        <span className="font-semibold text-sm text-blue-500">
+                                        <span className="text-lg leading-none">🎯</span>
+                                        <span className="font-semibold text-xs text-blue-500 uppercase tracking-wider">
                                             Objetivo Inicial
                                         </span>
                                     </div>
-                                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                                        <span className="text-base">💡</span>
-                                        <span>Empezando ejercicio ({exercise.target_sets || 3} series totales). Para aguantar la fatiga, intenta alcanzar un <strong>RIR {getInitialRirObjective()}</strong> en esta primera serie.</span>
+                                    <div className="flex items-start gap-2 text-sm text-muted-foreground leading-snug">
+                                        <span className="text-base leading-none">💡</span>
+                                        <span className="text-xs">Empezando ejercicio ({exercise.target_sets || 3} series totales). Intenta alcanzar un <strong>RIR {getInitialRirObjective()}</strong> en esta primera serie.</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -645,29 +662,48 @@ export default function ExerciseDetail() {
 
                 {/* Fatigue Display */}
                 {fatigue && (
-                    <Card className={`shadow-sm mt-2 overflow-hidden rounded-xl border ${fatigue.bgColor}`}>
-                        <CardContent className="px-4 flex flex-col gap-2">
+                    <Card className={`shadow-sm mt-1 overflow-hidden rounded-xl border ${fatigue.bgColor}`}>
+                        <CardContent className="px-3 py-2.5 flex flex-col gap-1.5">
                             <div className="flex items-center gap-2">
-                                <span className="text-lg">🔥</span>
-                                <span className="font-semibold text-sm">
+                                <span className="text-lg leading-none">🔥</span>
+                                <span className="font-semibold text-xs uppercase tracking-wider">
                                     Fatiga Acumulada: <span className={`font-bold ${fatigue.color}`}>{fatigue.estado}</span>
                                 </span>
                             </div>
-                            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                                <span className="text-base">💡</span>
-                                <span>Sugerencia: {fatigue.mensaje}</span>
+                            <div className="flex items-start gap-2 text-sm text-muted-foreground leading-snug">
+                                <span className="text-base leading-none">💡</span>
+                                <span className="text-xs">Sugerencia: {fatigue.mensaje}</span>
                             </div>
                         </CardContent>
                     </Card>
                 )}
 
                 {/* Add Set Form */}
-                <Card className="shadow-sm border-primary/20 bg-card/50 mt-4 overflow-hidden rounded-xl border">
-                    <div className="bg-primary/5 px-4 py-3 border-b border-primary/10 flex items-center gap-2">
-                        <Plus size={16} className="text-primary" />
-                        <span className="font-semibold text-sm">Nueva Serie</span>
+                <Card className="shadow-sm border-primary/20 bg-card/50 mt-3 overflow-hidden rounded-xl border">
+                    <div className="bg-primary/5 px-3 py-2 border-b border-primary/10 flex items-center gap-2">
+                        <Plus size={14} className="text-primary" />
+                        <span className="font-bold text-[11px] uppercase tracking-widest text-primary/80">Nueva Serie</span>
                     </div>
-                    <CardContent className="pt-4 flex flex-col gap-4">
+                    {/* Previous Session Info for current set */}
+                    {previousLog && previousLog.sets && previousLog.sets[(todayLog?.sets?.length || 0)] && (
+                        <div className="mx-3 mt-1 -mb-1 p-2.5 border border-dashed rounded-lg border-primary/30 bg-primary/5 animate-in fade-in slide-in-from-top-1 duration-300">
+                            <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-primary/70 italic">S. Pasada - Serie {(todayLog?.sets?.length || 0) + 1}</span>
+                                <span className="text-[9px] text-muted-foreground font-medium">{new Date(previousLog.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="font-bold text-sm">
+                                    {previousLog.sets[(todayLog?.sets?.length || 0)].weight} {previousLog.sets[(todayLog?.sets?.length || 0)].unit}
+                                    <span className="text-muted-foreground mx-1 font-normal">×</span>
+                                    {previousLog.sets[(todayLog?.sets?.length || 0)].reps} reps
+                                </span>
+                                <span className="text-[10px] font-bold text-primary/80 bg-primary/15 px-1.5 py-0.5 rounded">
+                                    RIR {previousLog.sets[(todayLog?.sets?.length || 0)].rir ?? '—'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    <CardContent className="p-3 flex flex-col gap-3.5">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col gap-2">
                                 <Label htmlFor="weight">Peso</Label>
@@ -691,6 +727,13 @@ export default function ExerciseDetail() {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {weight && !isNaN(Number(weight)) && (
+                                    <p className="text-[11px] text-muted-foreground mt-1 ml-1">
+                                        ≈ {unit === 'kg'
+                                            ? `${(Number(weight) * 2.20462).toFixed(1)} lb`
+                                            : `${(Number(weight) / 2.20462).toFixed(1)} kg`}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-col gap-2">
                                 <Label htmlFor="reps">Repeticiones</Label>

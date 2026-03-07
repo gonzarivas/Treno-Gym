@@ -7,6 +7,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Dumbbell, CheckCircle2 } from 'lucide-react';
 import { useMemo } from 'react';
+import { getLocalDateString } from '../lib/utils';
 
 const DAYS_OF_WEEK = [
     'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'
@@ -17,7 +18,7 @@ export default function Home() {
 
     // Get today's day_of_week number (0-6)
     const todayNum = useMemo(() => new Date().getDay(), []);
-    const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const todayDate = useMemo(() => getLocalDateString(), []);
 
     // Fetch Routine for today
     const { data: todayRoutine, isLoading: isRoutineLoading } = useSupabaseQuery(
@@ -111,7 +112,7 @@ export default function Home() {
                 </div>
             )}
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-6">
                 {isLoading ? (
                     <div className="flex flex-col gap-2 py-2">
                         <Skeleton className="h-[44px] w-full rounded-xl" />
@@ -129,59 +130,82 @@ export default function Home() {
                         </Button>
                     </div>
                 ) : (
-                    exercises.map((ex, index) => {
-                        const swapKey = `treno_equip_swap_${todayDate}`;
-                        const swapsStr = localStorage.getItem(swapKey);
-                        const swaps = swapsStr ? JSON.parse(swapsStr) : {};
-                        const equipSwap = swaps[ex.id!];
-                        const currentEquip = equipSwap || ex.equipment;
-                        const isCompleted = completedIds.has(ex.id!);
+                    (() => {
+                        const muscleGroups: Record<string, { ex: Exercise, index: number }[]> = {};
+                        const groupOrder: string[] = [];
 
-                        return (
-                            <Card
-                                key={`${ex?.id}-${index}`}
-                                className={`active:scale-[0.98] transition-all cursor-pointer shadow-none border-border/40 ${isCompleted
-                                        ? 'bg-green-500/5 border-green-500/30 hover:border-green-500/50'
-                                        : 'hover:border-primary/50'
-                                    }`}
-                                onClick={() => navigate(`/exercise/${ex?.id}`)}
-                            >
-                                <CardContent className="p-2 px-3 flex justify-between items-center gap-2">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className={`w-6 h-6 rounded-sm flex items-center justify-center font-bold text-xs shrink-0 ${isCompleted
-                                                ? 'bg-green-500/15 text-green-500'
-                                                : 'bg-primary/10 text-primary'
-                                            }`}>
-                                            {isCompleted ? (
-                                                <CheckCircle2 size={14} />
-                                            ) : (
-                                                index + 1
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className={`font-medium text-sm leading-tight truncate ${isCompleted ? 'text-muted-foreground line-through decoration-green-500/50' : ''
-                                                }`}>
-                                                {ex?.name}
-                                            </span>
-                                            <div className="flex items-center gap-1.5 text-[10px] leading-tight">
-                                                {currentEquip && (
-                                                    <span className="text-muted-foreground">
-                                                        {currentEquip}
-                                                    </span>
-                                                )}
-                                                {equipSwap && (
-                                                    <span className="text-primary font-bold uppercase tracking-tighter">
-                                                        (cambio)
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="text-muted-foreground/50 shrink-0" size={14} />
-                                </CardContent>
-                            </Card>
-                        );
-                    })
+                        exercises.forEach((ex, index) => {
+                            const muscle = ex.muscle_group || 'Otros';
+                            if (!muscleGroups[muscle]) {
+                                muscleGroups[muscle] = [];
+                                groupOrder.push(muscle);
+                            }
+                            muscleGroups[muscle].push({ ex, index });
+                        });
+
+                        return groupOrder.map((muscle) => (
+                            <div key={muscle} className="flex flex-col gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-widest text-primary ml-1">
+                                    {muscle}
+                                </span>
+                                <div className="flex flex-col gap-1.5">
+                                    {muscleGroups[muscle].map(({ ex, index }) => {
+                                        const swapKey = `treno_equip_swap_${todayDate}`;
+                                        const swapsStr = localStorage.getItem(swapKey);
+                                        const swaps = swapsStr ? JSON.parse(swapsStr) : {};
+                                        const equipSwap = swaps[ex.id!];
+                                        const currentEquip = equipSwap || ex.equipment;
+                                        const isCompleted = completedIds.has(ex.id!);
+
+                                        return (
+                                            <Card
+                                                key={`${ex?.id}-${index}`}
+                                                className={`active:scale-[0.98] transition-all cursor-pointer shadow-none border-border/40 ${isCompleted
+                                                    ? 'bg-green-500/5 border-green-500/30 hover:border-green-500/50'
+                                                    : 'hover:border-primary/50'
+                                                    }`}
+                                                onClick={() => navigate(`/exercise/${ex?.id}`)}
+                                            >
+                                                <CardContent className="p-2 px-3 flex justify-between items-center gap-2">
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <div className={`w-6 h-6 rounded-sm flex items-center justify-center font-bold text-xs shrink-0 ${isCompleted
+                                                            ? 'bg-green-500/15 text-green-500'
+                                                            : 'bg-primary/10 text-primary'
+                                                            }`}>
+                                                            {isCompleted ? (
+                                                                <CheckCircle2 size={14} />
+                                                            ) : (
+                                                                index + 1
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className={`font-medium text-sm leading-tight truncate ${isCompleted ? 'text-muted-foreground line-through decoration-green-500/50' : ''
+                                                                }`}>
+                                                                {ex?.name}
+                                                            </span>
+                                                            <div className="flex items-center gap-1.5 text-[10px] leading-tight">
+                                                                {currentEquip && (
+                                                                    <span className="text-muted-foreground">
+                                                                        {currentEquip}
+                                                                    </span>
+                                                                )}
+                                                                {equipSwap && (
+                                                                    <span className="text-primary font-bold uppercase tracking-tighter">
+                                                                        (cambio)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <ChevronRight className="text-muted-foreground/50 shrink-0" size={14} />
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ));
+                    })()
                 )}
             </div>
         </div>

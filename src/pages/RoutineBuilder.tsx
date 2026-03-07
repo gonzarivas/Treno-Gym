@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 import { supabase } from '../lib/db';
 import type { Exercise, RoutineDay } from '../lib/db';
@@ -25,7 +25,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '../components/ui/alert-dialog';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, GripVertical } from 'lucide-react';
+import { Reorder } from 'framer-motion';
 
 const EQUIPMENT_OPTIONS = ['Mancuernas', 'Barra', 'Máquina', 'Polea', 'Peso Corporal', 'Otro'];
 const MUSCLE_GROUPS = ['Pectoral', 'Espalda', 'Deltoides', 'Bíceps', 'Tríceps', 'Piernas', 'Glúteos', 'Abdomen', 'Cardio'];
@@ -61,7 +62,7 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function RoutineBuilder() {
-    const [activeDay, setActiveDay] = useState(1); // Default to Monday
+    const [activeDay, setActiveDay] = useState(() => new Date().getDay()); // Default to today
     const [isAddingMode, setIsAddingMode] = useState(false);
     const [newExerciseName, setNewExerciseName] = useState('');
     const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -70,6 +71,22 @@ export default function RoutineBuilder() {
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
     const [newExerciseSets, setNewExerciseSets] = useState<number>(3);
 
+    // Edit State
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+    const [editName, setEditName] = useState('');
+    const [editMuscle, setEditMuscle] = useState('');
+    const [editEquip, setEditEquip] = useState('');
+    const [editSets, setEditSets] = useState(3);
+
+    // Drag and Drop state
+    const [localExerciseIds, setLocalExerciseIds] = useState<number[]>([]);
+
+    // Ref for auto-scrolling active day tab into view
+    const activeDayRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        activeDayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, []);
     // Fetch Routine Day
     const { data: routineDay, isLoading: isRoutineDayLoading, refetch: refetchRoutineDay } = useSupabaseQuery(
         async () => {
@@ -79,12 +96,59 @@ export default function RoutineBuilder() {
                 .eq('day_of_week', activeDay)
                 .single();
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 means no rows found
-            return data as RoutineDay | null;
+
+            const dayData = data as RoutineDay | null;
+            if (dayData?.exercise_ids) {
+                setLocalExerciseIds(dayData.exercise_ids);
+            } else {
+                setLocalExerciseIds([]);
+            }
+
+            return dayData;
         },
         [activeDay]
     );
 
-    // Fetch Exercises for this day
+    // Fetch all unique exercise names from DB for suggestions
+    const { data: dbExerciseSuggestions } = useSupabaseQuery(
+        async () => {
+            const { data, error } = await supabase
+                .from('exercises')
+                .select('name, muscle_group, equipment')
+                .order('name');
+            if (error) throw error;
+
+            // Filter unique by name
+            const unique = new Map();
+            data?.forEach(ex => {
+                if (!unique.has(ex.name.toLowerCase())) {
+                    unique.set(ex.name.toLowerCase(), {
+                        name: ex.name,
+                        muscle: ex.muscle_group,
+                        equip: ex.equipment
+                    });
+                }
+            });
+            return Array.from(unique.values());
+        },
+        []
+    );
+
+    const allSuggestions = useMemo(() => {
+        const combined = [...CLASSIC_EXERCISES];
+        const existingNames = new Set(combined.map(ex => ex.name.toLowerCase()));
+
+        dbExerciseSuggestions?.forEach(ex => {
+            if (!existingNames.has(ex.name.toLowerCase())) {
+                combined.push(ex);
+                existingNames.add(ex.name.toLowerCase());
+            }
+        });
+
+        return combined.sort((a, b) => a.name.localeCompare(b.name));
+    }, [dbExerciseSuggestions]);
+
+    // Fetch Exercises for this day, maintaining the order from routineDay.exercise_ids
     const { data: exercises, isLoading: isExercisesLoading } = useSupabaseQuery(
         async () => {
             if (!routineDay || !routineDay.exercise_ids || !routineDay.exercise_ids.length) return [];
@@ -93,10 +157,17 @@ export default function RoutineBuilder() {
                 .select('*')
                 .in('id', routineDay.exercise_ids);
             if (error) throw error;
-            return data as Exercise[];
+
+            const exArray = data as Exercise[];
+            // Maintain exact order from exercise_ids array
+            return routineDay.exercise_ids
+                .map(id => exArray.find(e => e.id === id))
+                .filter(Boolean) as Exercise[];
         },
         [routineDay]
     );
+
+
 
     const handleCreateExercise = async () => {
         if (!newExerciseName.trim()) return;
@@ -156,9 +227,54 @@ export default function RoutineBuilder() {
             setNewExerciseEquip('');
             setNewExerciseSets(3);
             setIsAddingMode(false);
+
+            // Optimistically update local IDs
+            setLocalExerciseIds(prev => [...prev, exerciseId]);
+
             refetchRoutineDay(); // Refetch routine day to get updated exercise_ids
         } catch (e) {
             console.error(e);
+        }
+    };
+
+    const handleUpdateExercise = async () => {
+        if (!editingExercise || !editName.trim()) return;
+
+        try {
+            const { error } = await supabase
+                .from('exercises')
+                .update({
+                    name: editName.trim(),
+                    muscle_group: editMuscle || null,
+                    equipment: editEquip || null,
+                    target_sets: editSets
+                })
+                .eq('id', editingExercise.id);
+
+            if (error) throw error;
+
+            setIsEditMode(false);
+            setEditingExercise(null);
+            refetchRoutineDay(); // Trigger refetch
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleReorder = async (newIds: number[]) => {
+        setLocalExerciseIds(newIds);
+
+        if (!routineDay || routineDay.id === undefined) return;
+
+        try {
+            const { error } = await supabase
+                .from('routine_days')
+                .update({ exercise_ids: newIds })
+                .eq('id', routineDay.id);
+
+            if (error) throw error;
+        } catch (e) {
+            console.error('Error saving new order:', e);
         }
     };
 
@@ -166,18 +282,14 @@ export default function RoutineBuilder() {
         if (!routineDay || routineDay.id === undefined) return;
 
         try {
-            // First delete series related to this exercise
-            await supabase.from('series').delete().eq('exercise_id', exerciseId);
+            const newIds = localExerciseIds.filter(id => id !== exerciseId);
+            setLocalExerciseIds(newIds);
 
-            // Delete the exercise itself from the database
-            const { error: delError } = await supabase.from('exercises').delete().eq('id', exerciseId);
-            if (delError) throw delError;
-
-            // Update local routine_days just for consistency
+            // Update routine_days to remove the exercise from this day ONLY
             const { error } = await supabase
                 .from('routine_days')
                 .update({
-                    exercise_ids: routineDay.exercise_ids.filter((id: number) => id !== exerciseId)
+                    exercise_ids: newIds
                 })
                 .eq('id', routineDay.id);
 
@@ -200,16 +312,20 @@ export default function RoutineBuilder() {
 
             {/* Days Tabs */}
             <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
-                {DAYS_OF_WEEK.map((day) => (
-                    <Button
-                        key={day.id}
-                        variant={activeDay === day.id ? 'default' : 'outline'}
-                        className="min-w-fit rounded-full"
-                        onClick={() => setActiveDay(day.id)}
-                    >
-                        {day.label}
-                    </Button>
-                ))}
+                {DAYS_OF_WEEK.map((day) => {
+                    const isActive = activeDay === day.id;
+                    return (
+                        <Button
+                            key={day.id}
+                            ref={isActive ? activeDayRef : undefined}
+                            variant={isActive ? 'default' : 'outline'}
+                            className="min-w-fit rounded-full"
+                            onClick={() => setActiveDay(day.id)}
+                        >
+                            {day.label}
+                        </Button>
+                    );
+                })}
             </div>
 
             {/* Exercises List */}
@@ -243,10 +359,10 @@ export default function RoutineBuilder() {
                                                 setNewExerciseName(val);
                                                 setShowAutocomplete(true);
                                                 // Auto-fill equipment and muscle if match exactly
-                                                const match = CLASSIC_EXERCISES.find(ex => ex.name.toLowerCase() === val.toLowerCase());
+                                                const match = allSuggestions.find(ex => ex.name.toLowerCase() === val.toLowerCase());
                                                 if (match) {
-                                                    setNewExerciseMuscle(match.muscle);
-                                                    setNewExerciseEquip(match.equip);
+                                                    if (match.muscle) setNewExerciseMuscle(match.muscle);
+                                                    if (match.equip) setNewExerciseEquip(match.equip);
                                                 }
                                             }}
                                             placeholder="Ej. Press Banca"
@@ -256,20 +372,20 @@ export default function RoutineBuilder() {
                                         {/* Custom Autocomplete Dropdown */}
                                         {showAutocomplete && newExerciseName.trim().length > 0 && (
                                             <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-[150px] overflow-y-auto">
-                                                {CLASSIC_EXERCISES.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).length > 0 ? (
-                                                    CLASSIC_EXERCISES.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).map((ex) => (
+                                                {allSuggestions.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).length > 0 ? (
+                                                    allSuggestions.filter(ex => ex.name.toLowerCase().includes(newExerciseName.toLowerCase())).map((ex) => (
                                                         <div
                                                             key={ex.name}
                                                             className="px-3 py-2 text-sm cursor-pointer hover:bg-muted"
                                                             onClick={() => {
                                                                 setNewExerciseName(ex.name);
-                                                                setNewExerciseMuscle(ex.muscle);
-                                                                setNewExerciseEquip(ex.equip);
+                                                                if (ex.muscle) setNewExerciseMuscle(ex.muscle);
+                                                                if (ex.equip) setNewExerciseEquip(ex.equip);
                                                                 setShowAutocomplete(false);
                                                             }}
                                                         >
                                                             <div className="font-medium">{ex.name}</div>
-                                                            <div className="text-xs text-muted-foreground">{ex.muscle} • {ex.equip}</div>
+                                                            <div className="text-xs text-muted-foreground">{ex.muscle || '—'} • {ex.equip || '—'}</div>
                                                         </div>
                                                     ))
                                                 ) : (
@@ -358,21 +474,87 @@ export default function RoutineBuilder() {
                         <p className="text-muted-foreground text-sm">No hay ejercicios para hoy.</p>
                     </div>
                 ) : (
-                    exercises.map((ex) => (
-                        <Card key={ex.id}>
-                            <CardContent className="p-4 flex justify-between items-center">
-                                <span className="font-medium">{ex.name}</span>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:bg-destructive/10"
-                                    onClick={() => ex.id && setPendingDeleteId(ex.id)}
-                                >
-                                    <Trash2 size={18} />
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ))
+                    <Reorder.Group axis="y" values={localExerciseIds} onReorder={handleReorder} className="flex flex-col gap-4">
+                        {localExerciseIds.map((id, index) => {
+                            const ex = exercises.find(e => e.id === id);
+                            if (!ex) return null;
+
+                            // Check if this is the first item of a new muscle group block
+                            const muscle = ex.muscle_group || 'Otros';
+                            const prevEx = index > 0 ? exercises.find(e => e.id === localExerciseIds[index - 1]) : null;
+                            const isNewGroup = !prevEx || (prevEx.muscle_group || 'Otros') !== muscle;
+
+                            return (
+                                <div key={ex.id} className="flex flex-col gap-2">
+                                    {isNewGroup && (
+                                        <span className="text-[10px] uppercase font-bold tracking-widest text-primary ml-1 mt-2">
+                                            {muscle}
+                                        </span>
+                                    )}
+                                    <Reorder.Item
+                                        value={id}
+                                        id={id.toString()}
+                                        className="list-none"
+                                    >
+                                        <Card className="overflow-hidden border-border/40 shadow-none active:scale-[0.98] active:shadow-md transition-all">
+                                            <CardContent className="p-3 flex justify-between items-center bg-card">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    {/* Drag Handle */}
+                                                    <div className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground/40 hover:text-primary transition-colors">
+                                                        <GripVertical size={20} />
+                                                    </div>
+
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-bold text-sm truncate leading-tight">{ex.name}</span>
+                                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 font-medium">
+                                                            {ex.equipment && (
+                                                                <span className="bg-muted px-1.5 py-0.5 rounded italic">
+                                                                    {ex.equipment}
+                                                                </span>
+                                                            )}
+                                                            <span className="tabular-nums font-bold text-primary/80">
+                                                                {ex.target_sets} sets
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingExercise(ex);
+                                                            setEditName(ex.name);
+                                                            setEditMuscle(ex.muscle_group || '');
+                                                            setEditEquip(ex.equipment || '');
+                                                            setEditSets(ex.target_sets || 3);
+                                                            setIsEditMode(true);
+                                                        }}
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            ex.id && setPendingDeleteId(ex.id);
+                                                        }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </Reorder.Item>
+                                </div>
+                            );
+                        })}
+                    </Reorder.Group>
                 )}
             </div>
 
@@ -380,9 +562,9 @@ export default function RoutineBuilder() {
             <AlertDialog open={pendingDeleteId !== null} onOpenChange={(open) => !open && setPendingDeleteId(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar este ejercicio?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Quitar de este día?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esto también eliminará su historial de series de la base de datos de forma permanente.
+                            El ejercicio se eliminará de tu rutina de hoy, pero seguirá existiendo en otros días y en tu historial.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -396,11 +578,79 @@ export default function RoutineBuilder() {
                                 setPendingDeleteId(null);
                             }}
                         >
-                            Eliminar
+                            Confirmar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Edit Exercise Dialog */}
+            <Dialog open={isEditMode} onOpenChange={setIsEditMode}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Editar Ejercicio</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-name" className="text-right">Nombre</Label>
+                            <Input
+                                id="edit-name"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="col-span-3"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">Músculo</Label>
+                            <div className="col-span-3">
+                                <Select value={editMuscle} onValueChange={setEditMuscle}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Opcional" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {MUSCLE_GROUPS.map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">Equipo</Label>
+                            <div className="col-span-3">
+                                <Select value={editEquip} onValueChange={setEditEquip}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Opcional" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {EQUIPMENT_OPTIONS.map(eq => (
+                                            <SelectItem key={eq} value={eq}>{eq}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">Series</Label>
+                            <div className="col-span-3">
+                                <Select value={editSets.toString()} onValueChange={(v) => setEditSets(Number(v))}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {[1, 2, 3, 4, 5, 6].map(num => (
+                                            <SelectItem key={num} value={num.toString()}>{num} {num === 1 ? 'Serie' : 'Series'}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+                    <Button onClick={handleUpdateExercise} disabled={!editName.trim()}>
+                        Guardar Cambios
+                    </Button>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

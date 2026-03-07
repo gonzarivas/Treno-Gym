@@ -5,6 +5,7 @@ import type { Exercise, WorkoutLog, SetLog } from '../lib/db';
 import { Skeleton } from '../components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Flame, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { getLocalDateString } from '../lib/utils';
 
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
@@ -45,7 +46,7 @@ function getFeelingEmoji(feeling?: string) {
 
 export default function History() {
     const today = useMemo(() => new Date(), []);
-    const todayStr = useMemo(() => today.toISOString().split('T')[0], [today]);
+    const todayStr = useMemo(() => getLocalDateString(today), [today]);
 
     const [viewYear, setViewYear] = useState(today.getFullYear());
     const [viewMonth, setViewMonth] = useState(today.getMonth());
